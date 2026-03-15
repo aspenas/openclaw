@@ -9,6 +9,10 @@ title: "Gateway-Owned Pairing"
 
 # Gateway-owned pairing (Option B)
 
+> Local deployment note for Mac Studio:
+> this document describes the upstream gateway-owned pairing model, but the current local runtime inventory is tracked from the live device store under `~/.openclaw/devices/`.
+> Use the live control-plane docs in `~/.openclaw/workspace/docs/` when you need the actual running architecture, ports, and guards on this machine.
+
 In Gateway-owned pairing, the **Gateway** is the source of truth for which nodes
 are allowed to join. UIs (macOS app, future clients) are just frontends that
 approve or reject pending requests.

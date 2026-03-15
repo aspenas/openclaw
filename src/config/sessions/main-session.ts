@@ -3,6 +3,7 @@ import {
   DEFAULT_AGENT_ID,
   normalizeAgentId,
   normalizeMainKey,
+  parseAgentSessionKey,
   resolveAgentIdFromSessionKey,
 } from "../../routing/session-key.js";
 import { loadConfig } from "../config.js";
@@ -76,4 +77,28 @@ export function canonicalizeMainSessionAlias(params: {
     return agentMainSessionKey;
   }
   return raw;
+}
+
+export function isCanonicalMainSessionStoreKey(params: {
+  cfg?: { session?: { scope?: SessionScope; mainKey?: string } };
+  sessionKey: string | undefined | null;
+}): boolean {
+  const raw = params.sessionKey?.trim();
+  if (!raw || params.cfg?.session?.scope === "global") {
+    return false;
+  }
+  const parsed = parseAgentSessionKey(raw);
+  if (!parsed?.agentId) {
+    return false;
+  }
+  const canonical = resolveAgentMainSessionKey({
+    cfg: params.cfg,
+    agentId: parsed.agentId,
+  }).toLowerCase();
+  const mainAlias = buildAgentMainSessionKey({
+    agentId: parsed.agentId,
+    mainKey: "main",
+  }).toLowerCase();
+  const normalizedRaw = raw.toLowerCase();
+  return normalizedRaw === canonical || normalizedRaw === mainAlias;
 }

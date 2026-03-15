@@ -215,11 +215,11 @@ describe("sessions", () => {
   }
 
   it("updateLastRoute persists channel and target", async () => {
-    const mainSessionKey = "agent:main:main";
+    const sessionKey = "agent:main:telegram:direct:12345";
     const { storePath } = await createSessionStoreFixture({
       prefix: "updateLastRoute",
       entries: {
-        [mainSessionKey]: buildMainSessionEntry({
+        [sessionKey]: buildMainSessionEntry({
           systemSent: true,
           thinkingLevel: "low",
           responseUsage: "on",
@@ -234,7 +234,7 @@ describe("sessions", () => {
 
     await updateLastRoute({
       storePath,
-      sessionKey: mainSessionKey,
+      sessionKey,
       deliveryContext: {
         channel: "telegram",
         to: "  12345  ",
@@ -242,24 +242,24 @@ describe("sessions", () => {
     });
 
     const store = loadSessionStore(storePath);
-    expect(store[mainSessionKey]?.sessionId).toBe("sess-1");
-    expect(store[mainSessionKey]?.updatedAt).toBeGreaterThanOrEqual(123);
-    expect(store[mainSessionKey]?.lastChannel).toBe("telegram");
-    expect(store[mainSessionKey]?.lastTo).toBe("12345");
-    expect(store[mainSessionKey]?.deliveryContext).toEqual({
+    expect(store[sessionKey]?.sessionId).toBe("sess-1");
+    expect(store[sessionKey]?.updatedAt).toBeGreaterThanOrEqual(123);
+    expect(store[sessionKey]?.lastChannel).toBe("telegram");
+    expect(store[sessionKey]?.lastTo).toBe("12345");
+    expect(store[sessionKey]?.deliveryContext).toEqual({
       channel: "telegram",
       to: "12345",
     });
-    expect(store[mainSessionKey]?.responseUsage).toBe("on");
-    expect(store[mainSessionKey]?.queueDebounceMs).toBe(1234);
-    expect(store[mainSessionKey]?.reasoningLevel).toBe("on");
-    expect(store[mainSessionKey]?.elevatedLevel).toBe("on");
-    expect(store[mainSessionKey]?.authProfileOverride).toBe("auth-1");
-    expect(store[mainSessionKey]?.compactionCount).toBe(2);
+    expect(store[sessionKey]?.responseUsage).toBe("on");
+    expect(store[sessionKey]?.queueDebounceMs).toBe(1234);
+    expect(store[sessionKey]?.reasoningLevel).toBe("on");
+    expect(store[sessionKey]?.elevatedLevel).toBe("on");
+    expect(store[sessionKey]?.authProfileOverride).toBe("auth-1");
+    expect(store[sessionKey]?.compactionCount).toBe(2);
   });
 
   it("updateLastRoute prefers explicit deliveryContext", async () => {
-    const mainSessionKey = "agent:main:main";
+    const sessionKey = "agent:main:telegram:direct:12345";
     const { storePath } = await createSessionStoreFixture({
       prefix: "updateLastRoute",
       entries: {},
@@ -267,7 +267,7 @@ describe("sessions", () => {
 
     await updateLastRoute({
       storePath,
-      sessionKey: mainSessionKey,
+      sessionKey,
       channel: "whatsapp",
       to: "111",
       accountId: "legacy",
@@ -279,10 +279,10 @@ describe("sessions", () => {
     });
 
     const store = loadSessionStore(storePath);
-    expect(store[mainSessionKey]?.lastChannel).toBe("telegram");
-    expect(store[mainSessionKey]?.lastTo).toBe("222");
-    expect(store[mainSessionKey]?.lastAccountId).toBe("primary");
-    expect(store[mainSessionKey]?.deliveryContext).toEqual({
+    expect(store[sessionKey]?.lastChannel).toBe("telegram");
+    expect(store[sessionKey]?.lastTo).toBe("222");
+    expect(store[sessionKey]?.lastAccountId).toBe("primary");
+    expect(store[sessionKey]?.deliveryContext).toEqual({
       channel: "telegram",
       to: "222",
       accountId: "primary",
@@ -290,11 +290,11 @@ describe("sessions", () => {
   });
 
   it("updateLastRoute clears threadId when explicit route omits threadId", async () => {
-    const mainSessionKey = "agent:main:main";
+    const sessionKey = "agent:main:telegram:direct:12345";
     const { storePath } = await createSessionStoreFixture({
       prefix: "updateLastRoute",
       entries: {
-        [mainSessionKey]: buildMainSessionEntry({
+        [sessionKey]: buildMainSessionEntry({
           deliveryContext: {
             channel: "telegram",
             to: "222",
@@ -309,7 +309,7 @@ describe("sessions", () => {
 
     await updateLastRoute({
       storePath,
-      sessionKey: mainSessionKey,
+      sessionKey,
       deliveryContext: {
         channel: "telegram",
         to: "222",
@@ -317,11 +317,42 @@ describe("sessions", () => {
     });
 
     const store = loadSessionStore(storePath);
-    expect(store[mainSessionKey]?.deliveryContext).toEqual({
+    expect(store[sessionKey]?.deliveryContext).toEqual({
       channel: "telegram",
       to: "222",
     });
+    expect(store[sessionKey]?.lastThreadId).toBeUndefined();
+  });
+
+  it("updateLastRoute clears delivery bindings for canonical main sessions", async () => {
+    const mainSessionKey = "agent:main:main";
+    const dir = await createCaseDir("updateLastRoute-main-guard");
+    const storePath = path.join(dir, "sessions.json");
+    await fs.writeFile(storePath, "{}", "utf-8");
+
+    await updateLastRoute({
+      storePath,
+      sessionKey: mainSessionKey,
+      deliveryContext: {
+        channel: "telegram",
+        to: "222",
+        accountId: "primary",
+      },
+      ctx: {
+        Provider: "webchat",
+        OriginatingChannel: "webchat",
+        ChatType: "direct",
+        From: "patrick",
+      },
+    });
+
+    const store = loadSessionStore(storePath);
+    expect(store[mainSessionKey]?.lastChannel).toBeUndefined();
+    expect(store[mainSessionKey]?.lastTo).toBeUndefined();
+    expect(store[mainSessionKey]?.lastAccountId).toBeUndefined();
     expect(store[mainSessionKey]?.lastThreadId).toBeUndefined();
+    expect(store[mainSessionKey]?.deliveryContext).toBeUndefined();
+    expect(store[mainSessionKey]?.origin?.provider).toBe("webchat");
   });
 
   it("updateLastRoute records origin + group metadata when ctx is provided", async () => {
@@ -458,7 +489,7 @@ describe("sessions", () => {
     await fs.writeFile(storePath, "{}", "utf-8");
 
     await updateSessionStore(storePath, (store) => {
-      store["agent:main:main"] = {
+      store["agent:main:telegram:direct:12345"] = {
         sessionId: "sess-normalized",
         updatedAt: Date.now(),
         lastChannel: " WhatsApp ",
@@ -468,14 +499,61 @@ describe("sessions", () => {
     });
 
     const store = loadSessionStore(storePath);
-    expect(store["agent:main:main"]?.lastChannel).toBe("whatsapp");
-    expect(store["agent:main:main"]?.lastTo).toBe("+1555");
-    expect(store["agent:main:main"]?.lastAccountId).toBe("acct-1");
-    expect(store["agent:main:main"]?.deliveryContext).toEqual({
+    expect(store["agent:main:telegram:direct:12345"]?.lastChannel).toBe("whatsapp");
+    expect(store["agent:main:telegram:direct:12345"]?.lastTo).toBe("+1555");
+    expect(store["agent:main:telegram:direct:12345"]?.lastAccountId).toBe("acct-1");
+    expect(store["agent:main:telegram:direct:12345"]?.deliveryContext).toEqual({
       channel: "whatsapp",
       to: "+1555",
       accountId: "acct-1",
     });
+  });
+
+  it("clears contaminated main-session route fields on write and load", async () => {
+    const dir = await createCaseDir("mainSessionRouteGuard");
+    const storePath = path.join(dir, "sessions.json");
+    await fs.writeFile(
+      storePath,
+      JSON.stringify(
+        {
+          "agent:main:main": {
+            sessionId: "sess-main",
+            updatedAt: Date.now(),
+            lastChannel: "whatsapp",
+            lastTo: "+1555",
+            lastAccountId: "acct-1",
+            deliveryContext: {
+              channel: "whatsapp",
+              to: "+1555",
+              accountId: "acct-1",
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    const loaded = loadSessionStore(storePath);
+    expect(loaded["agent:main:main"]?.lastChannel).toBeUndefined();
+    expect(loaded["agent:main:main"]?.lastTo).toBeUndefined();
+    expect(loaded["agent:main:main"]?.lastAccountId).toBeUndefined();
+    expect(loaded["agent:main:main"]?.deliveryContext).toBeUndefined();
+
+    await updateSessionStore(storePath, (store) => {
+      store["agent:main:main"] = {
+        ...store["agent:main:main"],
+        sessionId: "sess-main",
+        updatedAt: Date.now(),
+      };
+    });
+
+    const persisted = loadSessionStore(storePath);
+    expect(persisted["agent:main:main"]?.lastChannel).toBeUndefined();
+    expect(persisted["agent:main:main"]?.lastTo).toBeUndefined();
+    expect(persisted["agent:main:main"]?.lastAccountId).toBeUndefined();
+    expect(persisted["agent:main:main"]?.deliveryContext).toBeUndefined();
   });
 
   it("updateSessionStore keeps deletions when concurrent writes happen", async () => {
@@ -510,14 +588,14 @@ describe("sessions", () => {
   });
 
   it("loadSessionStore auto-migrates legacy provider keys to channel keys", async () => {
-    const mainSessionKey = "agent:main:main";
+    const sessionKey = "agent:main:telegram:direct:12345";
     const dir = await createCaseDir("loadSessionStore");
     const storePath = path.join(dir, "sessions.json");
     await fs.writeFile(
       storePath,
       JSON.stringify(
         {
-          [mainSessionKey]: {
+          [sessionKey]: {
             sessionId: "sess-legacy",
             updatedAt: 123,
             provider: "slack",
@@ -532,7 +610,7 @@ describe("sessions", () => {
     );
 
     const store = loadSessionStore(storePath) as unknown as Record<string, Record<string, unknown>>;
-    const entry = store[mainSessionKey] ?? {};
+    const entry = store[sessionKey] ?? {};
     expect(entry.channel).toBe("slack");
     expect(entry.provider).toBeUndefined();
     expect(entry.lastChannel).toBe("telegram");

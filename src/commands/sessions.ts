@@ -2,6 +2,7 @@ import { lookupContextTokens } from "../agents/context.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../agents/defaults.js";
 import { loadConfig } from "../config/config.js";
 import { loadSessionStore, resolveFreshSessionTotalTokens } from "../config/sessions.js";
+import { resolveSessionClassification } from "../config/sessions/classification.js";
 import { classifySessionKey } from "../gateway/session-utils.js";
 import { info } from "../globals.js";
 import { parseAgentSessionKey } from "../routing/session-key.js";
@@ -122,11 +123,26 @@ export async function sessionsCommand(
   const rows = targets
     .flatMap((target) => {
       const store = loadSessionStore(target.storePath);
-      return toSessionDisplayRows(store).map((row) => ({
-        ...row,
-        agentId: parseAgentSessionKey(row.key)?.agentId ?? target.agentId,
-        kind: classifySessionKey(row.key, store[row.key]),
-      }));
+      return toSessionDisplayRows(store).map((row) => {
+        const classification =
+          row.sessionKind && row.project && row.retentionClass
+            ? {
+                sessionKind: row.sessionKind,
+                project: row.project,
+                retentionClass: row.retentionClass,
+              }
+            : resolveSessionClassification({
+                cfg,
+                sessionKey: row.key,
+                entry: store[row.key],
+              });
+        return {
+          ...row,
+          ...classification,
+          agentId: parseAgentSessionKey(row.key)?.agentId ?? target.agentId,
+          kind: classifySessionKey(row.key, store[row.key]),
+        };
+      });
     })
     .filter((row) => {
       if (activeMinutes === undefined) {

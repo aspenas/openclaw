@@ -104,6 +104,7 @@ const voiceCallConfigSchema = {
       advanced: true,
     },
     store: { label: "Call Log Store Path", advanced: true },
+    agentId: { label: "Owning Agent", advanced: true },
     responseModel: { label: "Response Model", advanced: true },
     responseSystemPrompt: { label: "Response System Prompt", advanced: true },
     responseTimeoutMs: { label: "Response Timeout (ms)", advanced: true },

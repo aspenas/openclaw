@@ -21,6 +21,9 @@ export type GatewaySessionRow = {
   displayName?: string;
   derivedTitle?: string;
   lastMessagePreview?: string;
+  sessionKind?: SessionEntry["sessionKind"];
+  project?: SessionEntry["project"];
+  retentionClass?: SessionEntry["retentionClass"];
   channel?: string;
   subject?: string;
   groupChannel?: string;

@@ -553,10 +553,6 @@ export function createHooksRequestHandler(
         sendJson(res, 400, { ok: false, error: normalized.error });
         return true;
       }
-      if (!isHookAgentAllowed(hooksConfig, normalized.value.agentId)) {
-        sendJson(res, 400, { ok: false, error: getHookAgentPolicyError() });
-        return true;
-      }
       const sessionKey = resolveHookSessionKey({
         hooksConfig,
         source: "request",
@@ -566,7 +562,15 @@ export function createHooksRequestHandler(
         sendJson(res, 400, { ok: false, error: sessionKey.error });
         return true;
       }
-      const targetAgentId = resolveHookTargetAgentId(hooksConfig, normalized.value.agentId);
+      if (!isHookAgentAllowed(hooksConfig, normalized.value.agentId, sessionKey.value)) {
+        sendJson(res, 400, { ok: false, error: getHookAgentPolicyError() });
+        return true;
+      }
+      const targetAgentId = resolveHookTargetAgentId(
+        hooksConfig,
+        normalized.value.agentId,
+        sessionKey.value,
+      );
       const replayKey = buildHookReplayCacheKey({
         pathKey: "agent",
         token,
@@ -637,10 +641,6 @@ export function createHooksRequestHandler(
             sendJson(res, 400, { ok: false, error: getHookChannelError() });
             return true;
           }
-          if (!isHookAgentAllowed(hooksConfig, mapped.action.agentId)) {
-            sendJson(res, 400, { ok: false, error: getHookAgentPolicyError() });
-            return true;
-          }
           const sessionKey = resolveHookSessionKey({
             hooksConfig,
             source: "mapping",
@@ -650,7 +650,15 @@ export function createHooksRequestHandler(
             sendJson(res, 400, { ok: false, error: sessionKey.error });
             return true;
           }
-          const targetAgentId = resolveHookTargetAgentId(hooksConfig, mapped.action.agentId);
+          if (!isHookAgentAllowed(hooksConfig, mapped.action.agentId, sessionKey.value)) {
+            sendJson(res, 400, { ok: false, error: getHookAgentPolicyError() });
+            return true;
+          }
+          const targetAgentId = resolveHookTargetAgentId(
+            hooksConfig,
+            mapped.action.agentId,
+            sessionKey.value,
+          );
           const normalizedDispatchSessionKey = normalizeHookDispatchSessionKey({
             sessionKey: sessionKey.value,
             targetAgentId,

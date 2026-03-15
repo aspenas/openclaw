@@ -146,6 +146,10 @@
       "label": "Call Log Store Path",
       "advanced": true
     },
+    "agentId": {
+      "label": "Owning Agent",
+      "advanced": true
+    },
     "responseModel": {
       "label": "Response Model",
       "advanced": true
@@ -595,6 +599,10 @@
       },
       "store": {
         "type": "string"
+      },
+      "agentId": {
+        "type": "string",
+        "minLength": 1
       },
       "responseModel": {
         "type": "string"

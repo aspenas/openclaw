@@ -11,6 +11,10 @@ export type SessionChannelId = ChannelId | "webchat";
 
 export type SessionChatType = ChatType;
 
+export type SessionClassificationKind = "human" | "automation" | "project" | "ephemeral";
+
+export type SessionRetentionClass = "durable" | "operational" | "ephemeral";
+
 export type SessionOrigin = {
   label?: string;
   provider?: string;
@@ -157,6 +161,9 @@ export type SessionEntry = {
   claudeCliSessionId?: string;
   label?: string;
   displayName?: string;
+  sessionKind?: SessionClassificationKind;
+  project?: string;
+  retentionClass?: SessionRetentionClass;
   channel?: string;
   groupId?: string;
   subject?: string;

@@ -730,6 +730,16 @@ describe("listSessionsFromStore search", () => {
     }
   });
 
+  test("search includes derived classification when store metadata is missing", () => {
+    const result = listSessionsFromStore({
+      cfg: baseCfg,
+      storePath: "/tmp/sessions.json",
+      store: makeStore(),
+      opts: { search: "engineering-hub" },
+    });
+    expect(result.sessions.map((row) => row.key)).toContain("agent:main:work-project");
+  });
+
   test("hides cron run alias session keys from sessions list", () => {
     const now = Date.now();
     const store: Record<string, SessionEntry> = {

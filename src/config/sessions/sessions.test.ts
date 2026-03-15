@@ -70,6 +70,21 @@ describe("session path safety", () => {
     expect(resolved).toBe(path.resolve(sessionsDir, "sess-1.jsonl"));
   });
 
+  it("falls back to the new session transcript when entry sessionId has rolled over", () => {
+    const sessionsDir = "/tmp/openclaw/agents/main/sessions";
+
+    const resolved = resolveSessionFilePath(
+      "sess-2",
+      {
+        sessionId: "sess-1",
+        sessionFile: path.join(sessionsDir, "sess-1.jsonl"),
+      },
+      { sessionsDir },
+    );
+
+    expect(resolved).toBe(path.resolve(sessionsDir, "sess-2.jsonl"));
+  });
+
   it("ignores multi-store sentinel paths when deriving session file options", () => {
     expect(resolveSessionFilePathOptions({ agentId: "worker", storePath: "(multiple)" })).toEqual({
       agentId: "worker",
@@ -450,6 +465,48 @@ describe("resolveAndPersistSessionFile", () => {
     expect(result.sessionFile).toBe(fallbackSessionFile);
     expect(result.sessionEntry.sessionId).toBe(sessionId);
     const saved = loadSessionStore(fixture.storePath(), { skipCache: true });
+    expect(saved[sessionKey]?.sessionFile).toBe(fallbackSessionFile);
+  });
+
+  it("replaces stale sessionFile paths when the sessionId rolls over", async () => {
+    const oldSessionId = "old-session-id";
+    const newSessionId = "new-session-id";
+    const sessionKey = "agent:main:telegram:group:123:topic:456";
+    const oldSessionFile = resolveSessionTranscriptPathInDir(oldSessionId, fixture.sessionsDir());
+    const fallbackSessionFile = resolveSessionTranscriptPathInDir(
+      newSessionId,
+      fixture.sessionsDir(),
+      456,
+    );
+    fs.writeFileSync(
+      fixture.storePath(),
+      JSON.stringify({
+        [sessionKey]: {
+          sessionId: oldSessionId,
+          sessionFile: oldSessionFile,
+          updatedAt: Date.now(),
+        },
+      }),
+      "utf-8",
+    );
+    const sessionStore = loadSessionStore(fixture.storePath(), { skipCache: true });
+
+    const result = await resolveAndPersistSessionFile({
+      sessionId: newSessionId,
+      sessionKey,
+      sessionStore,
+      storePath: fixture.storePath(),
+      sessionEntry: sessionStore[sessionKey],
+      agentId: "main",
+      sessionsDir: fixture.sessionsDir(),
+      fallbackSessionFile,
+    });
+
+    expect(result.sessionFile).toBe(fallbackSessionFile);
+    expect(result.sessionEntry.sessionId).toBe(newSessionId);
+
+    const saved = loadSessionStore(fixture.storePath(), { skipCache: true });
+    expect(saved[sessionKey]?.sessionId).toBe(newSessionId);
     expect(saved[sessionKey]?.sessionFile).toBe(fallbackSessionFile);
   });
 });

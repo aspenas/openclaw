@@ -16,6 +16,7 @@ const { resolveAgentIdFromSessionKey, resolveAgentMainSessionKey, resolveMainSes
   await import("../config/sessions/main-session.js");
 const { resolveStorePath } = await import("../config/sessions/paths.js");
 const { loadSessionStore, saveSessionStore } = await import("../config/sessions/store.js");
+const { resolveSessionTranscriptFile } = await import("../config/sessions/transcript.js");
 
 describe("runBootOnce", () => {
   type BootWorkspaceOptions = {
@@ -220,6 +221,42 @@ describe("runBootOnce", () => {
         /^boot-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-\d{3}-[0-9a-f]{8}$/,
       );
       expect(call?.sessionKey).toBe(sessionKey);
+    });
+  });
+
+  it("resolves boot runs onto a fresh transcript instead of the existing main transcript", async () => {
+    await withBootWorkspace({ bootContent: "Check startup health." }, async (workspaceDir) => {
+      const cfg = {};
+      const { sessionKey, storePath } = resolveMainStore(cfg);
+      const existingSessionId = "main-session-existing";
+      const existingSessionFile = path.join(path.dirname(storePath), `${existingSessionId}.jsonl`);
+
+      await saveSessionStore(storePath, {
+        [sessionKey]: {
+          sessionId: existingSessionId,
+          sessionFile: existingSessionFile,
+          updatedAt: Date.now(),
+        },
+      });
+
+      agentCommand.mockImplementation(async (opts: { sessionId?: string; sessionKey?: string }) => {
+        const sessionStore = loadSessionStore(storePath, { skipCache: true });
+        const sessionEntry = sessionStore[sessionKey];
+        const resolved = await resolveSessionTranscriptFile({
+          sessionId: String(opts.sessionId),
+          sessionKey: String(opts.sessionKey),
+          sessionStore,
+          storePath,
+          sessionEntry,
+          agentId: resolveAgentIdFromSessionKey(sessionKey),
+        });
+        expect(resolved.sessionFile).not.toBe(existingSessionFile);
+        expect(path.basename(resolved.sessionFile)).toBe(`${opts.sessionId}.jsonl`);
+      });
+
+      await expect(runBootOnce({ cfg, deps: makeDeps(), workspaceDir })).resolves.toEqual({
+        status: "ran",
+      });
     });
   });
 

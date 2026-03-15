@@ -339,6 +339,9 @@ export const VoiceCallConfigSchema = z
     /** Store path for call logs */
     store: z.string().optional(),
 
+    /** Agent that owns voice-call conversations and live session state. */
+    agentId: z.string().min(1).default("voice"),
+
     /** Model for generating voice responses (e.g., "anthropic/claude-sonnet-4", "openai/gpt-4o") */
     responseModel: z.string().default("openai/gpt-4o-mini"),
 

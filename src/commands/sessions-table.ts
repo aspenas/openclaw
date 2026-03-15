@@ -12,6 +12,9 @@ export type SessionDisplayRow = {
   updatedAt: number | null;
   ageMs: number | null;
   sessionId?: string;
+  sessionKind?: SessionEntry["sessionKind"];
+  project?: SessionEntry["project"];
+  retentionClass?: SessionEntry["retentionClass"];
   systemSent?: boolean;
   abortedLastRun?: boolean;
   thinkingLevel?: string;
@@ -48,6 +51,9 @@ export function toSessionDisplayRows(store: Record<string, SessionEntry>): Sessi
         updatedAt,
         ageMs: updatedAt ? Date.now() - updatedAt : null,
         sessionId: entry?.sessionId,
+        sessionKind: entry?.sessionKind,
+        project: entry?.project,
+        retentionClass: entry?.retentionClass,
         systemSent: entry?.systemSent,
         abortedLastRun: entry?.abortedLastRun,
         thinkingLevel: entry?.thinkingLevel,

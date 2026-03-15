@@ -15,6 +15,7 @@ import {
   buildGroupDisplayName,
   canonicalizeMainSessionAlias,
   loadSessionStore,
+  resolveSessionClassification,
   resolveAllAgentSessionStoreTargetsSync,
   resolveAgentMainSessionKey,
   resolveFreshSessionTotalTokens,
@@ -936,6 +937,18 @@ export function listSessionsFromStore(params: {
       const resolvedModel = resolveSessionModelIdentityRef(cfg, entry, sessionAgentId);
       const modelProvider = resolvedModel.provider;
       const model = resolvedModel.model ?? DEFAULT_MODEL;
+      const classification =
+        entry?.sessionKind && entry?.project && entry?.retentionClass
+          ? {
+              sessionKind: entry.sessionKind,
+              project: entry.project,
+              retentionClass: entry.retentionClass,
+            }
+          : resolveSessionClassification({
+              cfg,
+              sessionKey: key,
+              entry,
+            });
       return {
         key,
         spawnedBy: entry?.spawnedBy,
@@ -967,6 +980,9 @@ export function listSessionsFromStore(params: {
         modelProvider,
         model,
         contextTokens: entry?.contextTokens,
+        sessionKind: classification.sessionKind,
+        project: classification.project,
+        retentionClass: classification.retentionClass,
         deliveryContext: deliveryFields.deliveryContext,
         lastChannel: deliveryFields.lastChannel ?? entry?.lastChannel,
         lastTo: deliveryFields.lastTo ?? entry?.lastTo,
@@ -977,7 +993,16 @@ export function listSessionsFromStore(params: {
 
   if (search) {
     sessions = sessions.filter((s) => {
-      const fields = [s.displayName, s.label, s.subject, s.sessionId, s.key];
+      const fields = [
+        s.displayName,
+        s.label,
+        s.subject,
+        s.sessionId,
+        s.key,
+        s.sessionKind,
+        s.project,
+        s.retentionClass,
+      ];
       return fields.some((f) => typeof f === "string" && f.toLowerCase().includes(search));
     });
   }

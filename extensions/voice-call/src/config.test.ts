@@ -188,6 +188,7 @@ describe("normalizeVoiceCallConfig", () => {
     expect(normalized.streaming.sttModel).toBe("gpt-4o-transcribe");
     expect(normalized.tunnel.provider).toBe("none");
     expect(normalized.webhookSecurity.allowedHosts).toEqual([]);
+    expect(normalized.agentId).toBe("voice");
   });
 
   it("accepts partial nested TTS overrides and preserves nested objects", () => {

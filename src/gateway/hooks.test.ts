@@ -173,6 +173,7 @@ describe("gateway hooks helpers", () => {
     expect(resolveHookTargetAgentId(resolved, "hooks")).toBe("hooks");
     expect(resolveHookTargetAgentId(resolved, "missing-agent")).toBe("main");
     expect(resolveHookTargetAgentId(resolved, undefined)).toBeUndefined();
+    expect(resolveHookTargetAgentId(resolved, undefined, "agent:hooks:hook:ingress")).toBe("hooks");
   });
 
   test("isHookAgentAllowed honors hooks.allowedAgentIds for explicit routing", () => {
@@ -180,6 +181,8 @@ describe("gateway hooks helpers", () => {
     expect(isHookAgentAllowed(resolved, undefined)).toBe(true);
     expect(isHookAgentAllowed(resolved, "hooks")).toBe(true);
     expect(isHookAgentAllowed(resolved, "missing-agent")).toBe(false);
+    expect(isHookAgentAllowed(resolved, undefined, "agent:hooks:hook:ingress")).toBe(true);
+    expect(isHookAgentAllowed(resolved, undefined, "agent:main:hook:ingress")).toBe(false);
   });
 
   test("isHookAgentAllowed treats empty allowlist as deny-all for explicit agentId", () => {

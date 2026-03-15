@@ -313,6 +313,25 @@ describe("config plugin validation", () => {
     expect(res.ok).toBe(true);
   });
 
+  it("accepts voice-call agent ownership config fields", async () => {
+    const res = validateInSuite({
+      agents: { list: [{ id: "pi" }, { id: "voice" }] },
+      plugins: {
+        enabled: true,
+        load: { paths: [voiceCallSchemaPluginDir] },
+        entries: {
+          "voice-call-schema-fixture": {
+            config: {
+              agentId: "voice",
+              responseModel: "openai/gpt-4o-mini",
+            },
+          },
+        },
+      },
+    });
+    expect(res.ok).toBe(true);
+  });
+
   it("accepts known plugin ids and valid channel/heartbeat enums", async () => {
     const res = validateInSuite({
       agents: {

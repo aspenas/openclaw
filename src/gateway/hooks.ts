@@ -290,33 +290,41 @@ export function resolveHookIdempotencyKey(params: {
 export function resolveHookTargetAgentId(
   hooksConfig: HooksConfigResolved,
   agentId: string | undefined,
+  sessionKey?: string,
 ): string | undefined {
   const raw = agentId?.trim();
-  if (!raw) {
-    return undefined;
+  if (raw) {
+    const normalized = normalizeAgentId(raw);
+    if (hooksConfig.agentPolicy.knownAgentIds.has(normalized)) {
+      return normalized;
+    }
+    return hooksConfig.agentPolicy.defaultAgentId;
   }
-  const normalized = normalizeAgentId(raw);
-  if (hooksConfig.agentPolicy.knownAgentIds.has(normalized)) {
-    return normalized;
+  const scopedAgentId = parseAgentSessionKey(sessionKey)?.agentId;
+  if (scopedAgentId) {
+    const normalized = normalizeAgentId(scopedAgentId);
+    if (hooksConfig.agentPolicy.knownAgentIds.has(normalized)) {
+      return normalized;
+    }
+    return hooksConfig.agentPolicy.defaultAgentId;
   }
-  return hooksConfig.agentPolicy.defaultAgentId;
+  return undefined;
 }
 
 export function isHookAgentAllowed(
   hooksConfig: HooksConfigResolved,
   agentId: string | undefined,
+  sessionKey?: string,
 ): boolean {
-  // Keep backwards compatibility for callers that omit agentId.
-  const raw = agentId?.trim();
-  if (!raw) {
-    return true;
-  }
   const allowed = hooksConfig.agentPolicy.allowedAgentIds;
   if (allowed === undefined) {
     return true;
   }
-  const resolved = resolveHookTargetAgentId(hooksConfig, raw);
-  return resolved ? allowed.has(resolved) : false;
+  const resolved = resolveHookTargetAgentId(hooksConfig, agentId, sessionKey);
+  if (!resolved) {
+    return true;
+  }
+  return allowed.has(resolved);
 }
 
 export const getHookAgentPolicyError = () => "agentId is not allowed by hooks.allowedAgentIds";

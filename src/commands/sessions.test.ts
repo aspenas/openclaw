@@ -1,16 +1,9 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  makeRuntime,
-  mockSessionsConfig,
-  runSessionsJson,
-  writeStore,
-} from "./sessions.test-helpers.js";
+import { makeRuntime, runSessionsJson, writeStore } from "./sessions.test-helpers.js";
 
 // Disable colors for deterministic snapshots.
 process.env.FORCE_COLOR = "0";
-
-mockSessionsConfig();
 
 import { sessionsCommand } from "./sessions.js";
 
@@ -104,6 +97,43 @@ describe("sessionsCommand", () => {
     expect(main?.totalTokensFresh).toBe(true);
     expect(group?.totalTokens).toBeNull();
     expect(group?.totalTokensFresh).toBe(false);
+  });
+
+  it("derives session classification metadata in JSON output", async () => {
+    const store = writeStore({
+      "agent:voice:main": {
+        sessionId: "voice-main",
+        updatedAt: Date.now() - 3 * 60_000,
+        model: "pi:opus",
+      },
+      "agent:ops:cron:cleanup": {
+        sessionId: "ops-cron",
+        updatedAt: Date.now() - 7 * 60_000,
+        model: "pi:opus",
+      },
+    });
+
+    const payload = await runSessionsJson<{
+      sessions?: Array<{
+        key: string;
+        sessionKind?: string | null;
+        project?: string | null;
+        retentionClass?: string | null;
+      }>;
+    }>(sessionsCommand, store);
+    const voice = payload.sessions?.find((row) => row.key === "agent:voice:main");
+    const cron = payload.sessions?.find((row) => row.key === "agent:ops:cron:cleanup");
+
+    expect(voice).toMatchObject({
+      sessionKind: "project",
+      project: "voice",
+      retentionClass: "durable",
+    });
+    expect(cron).toMatchObject({
+      sessionKind: "automation",
+      project: "openclaw-runtime",
+      retentionClass: "operational",
+    });
   });
 
   it("applies --active filtering in JSON output", async () => {

@@ -261,12 +261,13 @@ export function resolveSessionTranscriptPath(
 
 export function resolveSessionFilePath(
   sessionId: string,
-  entry?: { sessionFile?: string },
+  entry?: { sessionFile?: string; sessionId?: string },
   opts?: SessionFilePathOptions,
 ): string {
   const sessionsDir = resolveSessionsDir(opts);
+  const entrySessionId = entry?.sessionId?.trim();
   const candidate = entry?.sessionFile?.trim();
-  if (candidate) {
+  if (candidate && (!entrySessionId || entrySessionId === sessionId.trim())) {
     try {
       return resolvePathWithinSessionsDir(sessionsDir, candidate, { agentId: opts?.agentId });
     } catch {

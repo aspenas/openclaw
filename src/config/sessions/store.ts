@@ -16,7 +16,10 @@ import {
   type DeliveryContext,
 } from "../../utils/delivery-context.js";
 import { getFileStatSnapshot, isCacheEnabled, resolveCacheTtlMs } from "../cache-utils.js";
+import { loadConfig } from "../config.js";
+import { applySessionClassification } from "./classification.js";
 import { enforceSessionDiskBudget, type SessionDiskBudgetSweepResult } from "./disk-budget.js";
+import { isCanonicalMainSessionStoreKey } from "./main-session.js";
 import { deriveSessionMetaPatch } from "./metadata.js";
 import {
   clearSessionStoreCaches,
@@ -66,15 +69,37 @@ function isSessionStoreCacheEnabled(): boolean {
   return isCacheEnabled(getSessionStoreTtl());
 }
 
-function normalizeSessionEntryDelivery(entry: SessionEntry): SessionEntry {
-  const normalized = normalizeSessionDeliveryFields({
-    channel: entry.channel,
-    lastChannel: entry.lastChannel,
-    lastTo: entry.lastTo,
-    lastAccountId: entry.lastAccountId,
-    lastThreadId: entry.lastThreadId ?? entry.deliveryContext?.threadId ?? entry.origin?.threadId,
-    deliveryContext: entry.deliveryContext,
-  });
+function loadSessionConfigSafe(): ReturnType<typeof loadConfig> | undefined {
+  try {
+    return loadConfig();
+  } catch {
+    return undefined;
+  }
+}
+
+function isCanonicalMainSessionKey(
+  sessionKey: string | undefined,
+  cfg?: ReturnType<typeof loadConfig>,
+): boolean {
+  return isCanonicalMainSessionStoreKey({ cfg, sessionKey });
+}
+
+function normalizeSessionEntryDelivery(
+  entry: SessionEntry,
+  sessionKey?: string,
+  cfg?: ReturnType<typeof loadConfig>,
+): SessionEntry {
+  const normalized = isCanonicalMainSessionKey(sessionKey, cfg)
+    ? normalizeSessionDeliveryFields({})
+    : normalizeSessionDeliveryFields({
+        channel: entry.channel,
+        lastChannel: entry.lastChannel,
+        lastTo: entry.lastTo,
+        lastAccountId: entry.lastAccountId,
+        lastThreadId:
+          entry.lastThreadId ?? entry.deliveryContext?.threadId ?? entry.origin?.threadId,
+        deliveryContext: entry.deliveryContext,
+      });
   const nextDelivery = normalized.deliveryContext;
   const sameDelivery =
     (entry.deliveryContext?.channel ?? undefined) === nextDelivery?.channel &&
@@ -154,11 +179,25 @@ export function resolveSessionStoreEntry(params: {
 }
 
 function normalizeSessionStore(store: Record<string, SessionEntry>): void {
+  const cfg = loadSessionConfigSafe();
   for (const [key, entry] of Object.entries(store)) {
     if (!entry) {
       continue;
     }
-    const normalized = normalizeSessionEntryDelivery(normalizeSessionRuntimeModelFields(entry));
+    const normalized = normalizeSessionEntryDelivery(
+      normalizeSessionRuntimeModelFields(entry),
+      key,
+      cfg,
+    );
+    const classified = applySessionClassification({
+      cfg,
+      sessionKey: key,
+      entry: normalized,
+    });
+    if (classified !== entry) {
+      store[key] = classified;
+      continue;
+    }
     if (normalized !== entry) {
       store[key] = normalized;
     }
@@ -254,6 +293,7 @@ export function loadSessionStore(
   }
 
   applySessionStoreMigrations(store);
+  normalizeSessionStore(store);
 
   // Cache the result if caching is enabled
   if (!opts.skipCache && isSessionStoreCacheEnabled()) {
@@ -621,7 +661,7 @@ async function persistResolvedSessionEntry(params: {
   await saveSessionStoreUnlocked(params.storePath, params.store, {
     activeSessionKey: params.resolved.normalizedKey,
   });
-  return params.next;
+  return params.store[params.resolved.normalizedKey] ?? params.next;
 }
 
 function lockTimeoutError(storePath: string): Error {
@@ -845,14 +885,17 @@ export async function updateLastRoute(params: {
       ? removeThreadFromDeliveryContext(deliveryContextFromSession(existing))
       : deliveryContextFromSession(existing);
     const merged = mergeDeliveryContext(mergedInput, fallbackContext);
-    const normalized = normalizeSessionDeliveryFields({
-      deliveryContext: {
-        channel: merged?.channel,
-        to: merged?.to,
-        accountId: merged?.accountId,
-        threadId: merged?.threadId,
-      },
-    });
+    const shouldPersistMainSessionDelivery = !isCanonicalMainSessionKey(resolved.normalizedKey);
+    const normalized = shouldPersistMainSessionDelivery
+      ? normalizeSessionDeliveryFields({
+          deliveryContext: {
+            channel: merged?.channel,
+            to: merged?.to,
+            accountId: merged?.accountId,
+            threadId: merged?.threadId,
+          },
+        })
+      : normalizeSessionDeliveryFields({});
     const metaPatch = ctx
       ? deriveSessionMetaPatch({
           ctx,

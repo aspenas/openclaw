@@ -87,6 +87,21 @@ describe("boot-md handler", () => {
     );
   });
 
+  it("dedupes shared workspaces and prefers ops ownership", async () => {
+    const sharedWorkspaceDir = path.join(path.sep, "ws", "shared");
+    const cfg = { agents: { list: [{ id: "main" }, { id: "ops" }, { id: "control" }] } };
+    listAgentIds.mockReturnValue(["main", "ops", "control"]);
+    resolveAgentWorkspaceDir.mockReturnValue(sharedWorkspaceDir);
+    runBootOnce.mockResolvedValue({ status: "ran" });
+
+    await runBootChecklist(makeEvent({ context: { cfg } }));
+
+    expect(runBootOnce).toHaveBeenCalledTimes(1);
+    expect(runBootOnce).toHaveBeenCalledWith(
+      expect.objectContaining({ cfg, workspaceDir: sharedWorkspaceDir, agentId: "ops" }),
+    );
+  });
+
   it("runs boot for single default agent when no agents configured", async () => {
     const cfg = setupSingleMainAgentBootConfig({});
     runBootOnce.mockResolvedValue({ status: "skipped", reason: "missing" });

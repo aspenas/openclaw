@@ -225,9 +225,15 @@ export function attachGatewayWsConnectionHandler(params: AttachGatewayWsConnecti
         ...closeMeta,
       };
       if (!client) {
+        const isExpectedAuthHandshakeReject =
+          closeCause === "pairing-required" ||
+          closeCause === "device-required" ||
+          closeCause === "control-ui-insecure-auth";
         const logFn = isNoisySwiftPmHelperClose(requestUserAgent, remoteAddr)
           ? logWsControl.debug
-          : logWsControl.warn;
+          : isExpectedAuthHandshakeReject
+            ? logWsControl.info
+            : logWsControl.warn;
         logFn(
           `closed before connect conn=${connId} remote=${remoteAddr ?? "?"} fwd=${logForwardedFor || "n/a"} origin=${logOrigin || "n/a"} host=${logHost || "n/a"} ua=${logUserAgent || "n/a"} code=${code ?? "n/a"} reason=${logReason || "n/a"}`,
           closeContext,

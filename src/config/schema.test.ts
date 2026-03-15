@@ -21,6 +21,7 @@ describe("config schema", () => {
           name: "Voice Call",
           description: "Outbound voice calls",
           configUiHints: {
+            agentId: { label: "Owning Agent" },
             provider: { label: "Provider" },
             "twilio.authToken": { label: "Auth Token", sensitive: true },
           },
@@ -109,6 +110,7 @@ describe("config schema", () => {
 
     expect(res.uiHints["plugins.entries.voice-call"]?.label).toBe("Voice Call");
     expect(res.uiHints["plugins.entries.voice-call.config"]?.label).toBe("Voice Call Config");
+    expect(res.uiHints["plugins.entries.voice-call.config.agentId"]?.label).toBe("Owning Agent");
     expect(res.uiHints["plugins.entries.voice-call.config.twilio.authToken"]?.label).toBe(
       "Auth Token",
     );
