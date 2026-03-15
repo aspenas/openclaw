@@ -70,10 +70,11 @@ export function registerControlUiAndPairingSuite(): void {
     client: { id: string; mode: string };
     nonce: string;
     scopes: string[];
+    token?: string;
     role?: "operator" | "node";
   }) => {
     const { device } = await createSignedDevice({
-      token: "secret",
+      token: params.token ?? "secret",
       scopes: params.scopes,
       clientId: params.client.id,
       clientMode: params.client.mode,
@@ -562,6 +563,44 @@ export function registerControlUiAndPairingSuite(): void {
     );
     expect(await getPairedDevice(identity.deviceId)).toBeNull();
     ws2.close();
+    await server.close();
+    restoreGatewayToken(prevToken);
+  });
+
+  test("auto-approves remote operator bootstrap-token pairing for control ui clients", async () => {
+    const { writeConfigFile } = await import("../config/config.js");
+    const { issueDeviceBootstrapToken } = await import("../infra/device-bootstrap.js");
+    const { getPairedDevice, listDevicePairing } = await import("../infra/device-pairing.js");
+    const { server, ws, port, prevToken, identityPath, identity } =
+      await startServerWithOperatorIdentity("openclaw-bootstrap-pair-");
+    ws.close();
+    const client = { ...CONTROL_UI_CLIENT };
+    await writeConfigFile({
+      gateway: {
+        controlUi: {
+          allowedOrigins: ["https://gateway.example"],
+        },
+      },
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } as any);
+
+    const { token } = await issueDeviceBootstrapToken();
+    const wsRemote = await openWs(port, {
+      host: "gateway.example",
+      origin: "https://gateway.example",
+    });
+    const res = await connectReq(wsRemote, {
+      skipDefaultAuth: true,
+      bootstrapToken: token,
+      scopes: ["operator.admin"],
+      client,
+      deviceIdentityPath: identityPath,
+    });
+    expect(res.ok).toBe(true);
+    expect(await getPairedDevice(identity.deviceId)).not.toBeNull();
+    const pairing = await listDevicePairing();
+    expect(pairing.pending.filter((entry) => entry.deviceId === identity.deviceId)).toHaveLength(0);
+    wsRemote.close();
     await server.close();
     restoreGatewayToken(prevToken);
   });

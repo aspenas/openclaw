@@ -152,8 +152,10 @@ type Pending = {
 
 type SelectedConnectAuth = {
   authToken?: string;
+  authBootstrapToken?: string;
   authDeviceToken?: string;
   authPassword?: string;
+  signatureToken?: string;
   resolvedDeviceToken?: string;
   storedToken?: string;
   canFallbackToShared: boolean;
@@ -162,6 +164,7 @@ type SelectedConnectAuth = {
 export type GatewayBrowserClientOptions = {
   url: string;
   token?: string;
+  bootstrapToken?: string;
   password?: string;
   clientName?: GatewayClientName;
   clientVersion?: string;
@@ -285,6 +288,7 @@ export class GatewayBrowserClient {
     let selectedAuth: SelectedConnectAuth = {
       authToken: explicitGatewayToken,
       authPassword: explicitPassword,
+      signatureToken: explicitGatewayToken,
       canFallbackToShared: false,
     };
 
@@ -299,11 +303,16 @@ export class GatewayBrowserClient {
       }
     }
     const authToken = selectedAuth.authToken;
+    const authBootstrapToken = selectedAuth.authBootstrapToken;
     const deviceToken = selectedAuth.authDeviceToken ?? selectedAuth.resolvedDeviceToken;
     const auth =
-      authToken || selectedAuth.authPassword
+      authToken ||
+      authBootstrapToken ||
+      selectedAuth.authPassword ||
+      selectedAuth.resolvedDeviceToken
         ? {
             token: authToken,
+            bootstrapToken: authBootstrapToken,
             deviceToken,
             password: selectedAuth.authPassword,
           }
@@ -329,7 +338,7 @@ export class GatewayBrowserClient {
         role,
         scopes,
         signedAtMs,
-        token: authToken ?? null,
+        token: selectedAuth.signatureToken ?? null,
         nonce,
       });
       const signature = await signDevicePayload(deviceIdentity.privateKey, payload);
@@ -477,6 +486,7 @@ export class GatewayBrowserClient {
 
   private selectConnectAuth(params: { role: string; deviceId: string }): SelectedConnectAuth {
     const explicitGatewayToken = this.opts.token?.trim() || undefined;
+    const explicitBootstrapToken = this.opts.bootstrapToken?.trim() || undefined;
     const authPassword = this.opts.password?.trim() || undefined;
     const storedToken = loadDeviceAuthToken({
       deviceId: params.deviceId,
@@ -487,14 +497,19 @@ export class GatewayBrowserClient {
       Boolean(explicitGatewayToken) &&
       Boolean(storedToken) &&
       isTrustedRetryEndpoint(this.opts.url);
-    const resolvedDeviceToken = !(explicitGatewayToken || authPassword)
-      ? (storedToken ?? undefined)
-      : undefined;
+    const resolvedDeviceToken =
+      !(explicitGatewayToken || authPassword) && (!explicitBootstrapToken || Boolean(storedToken))
+        ? (storedToken ?? undefined)
+        : undefined;
     const authToken = explicitGatewayToken ?? resolvedDeviceToken;
+    const authBootstrapToken =
+      !explicitGatewayToken && !resolvedDeviceToken ? explicitBootstrapToken : undefined;
     return {
       authToken,
+      authBootstrapToken,
       authDeviceToken: shouldUseDeviceRetryToken ? (storedToken ?? undefined) : undefined,
       authPassword,
+      signatureToken: authToken ?? authBootstrapToken ?? undefined,
       resolvedDeviceToken,
       storedToken: storedToken ?? undefined,
       canFallbackToShared: Boolean(storedToken && explicitGatewayToken),

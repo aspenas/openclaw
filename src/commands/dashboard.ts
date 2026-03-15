@@ -3,6 +3,7 @@ import type { OpenClawConfig } from "../config/types.js";
 import { readGatewayTokenEnv } from "../gateway/credentials.js";
 import { resolveConfiguredSecretInputWithFallback } from "../gateway/resolve-configured-secret-input-string.js";
 import { copyToClipboard } from "../infra/clipboard.js";
+import { issueDeviceBootstrapToken } from "../infra/device-bootstrap.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
 import {
@@ -57,9 +58,6 @@ export async function dashboardCommand(
   const bind = cfg.gateway?.bind ?? "loopback";
   const basePath = cfg.gateway?.controlUi?.basePath;
   const customBindHost = cfg.gateway?.customBindHost;
-  const resolvedToken = await resolveDashboardToken(cfg, process.env);
-  const token = resolvedToken.token ?? "";
-
   // LAN URLs fail secure-context checks in browsers.
   // Coerce only lan->loopback and preserve other bind modes.
   const links = resolveControlUiLinks({
@@ -68,24 +66,39 @@ export async function dashboardCommand(
     customBindHost,
     basePath,
   });
-  // Avoid embedding externally managed SecretRef tokens in terminal/clipboard/browser args.
-  const includeTokenInUrl = token.length > 0 && !resolvedToken.tokenSecretRefConfigured;
-  // Prefer URL fragment to avoid leaking auth tokens via query params.
-  const dashboardUrl = includeTokenInUrl
-    ? `${links.httpUrl}#token=${encodeURIComponent(token)}`
-    : links.httpUrl;
+  let bootstrapToken: string | undefined;
+  let dashboardUrl = links.httpUrl;
+  let bootstrapTokenError: string | undefined;
+  try {
+    bootstrapToken = (await issueDeviceBootstrapToken()).token;
+    dashboardUrl = `${links.httpUrl}#bootstrapToken=${encodeURIComponent(bootstrapToken)}`;
+  } catch (err) {
+    bootstrapTokenError = String(err);
+    const resolvedToken = await resolveDashboardToken(cfg, process.env);
+    const token = resolvedToken.token ?? "";
+    const includeTokenInUrl = token.length > 0 && !resolvedToken.tokenSecretRefConfigured;
+    dashboardUrl = includeTokenInUrl
+      ? `${links.httpUrl}#token=${encodeURIComponent(token)}`
+      : links.httpUrl;
+
+    if (resolvedToken.tokenSecretRefConfigured && token) {
+      runtime.log(
+        "Token auto-auth is disabled for SecretRef-managed gateway.auth.token; use your external token source if prompted.",
+      );
+    }
+    if (resolvedToken.unresolvedRefReason) {
+      runtime.log(`Token auto-auth unavailable: ${resolvedToken.unresolvedRefReason}`);
+      runtime.log(
+        "Set OPENCLAW_GATEWAY_TOKEN in this shell or resolve your secret provider, then rerun `openclaw dashboard`.",
+      );
+    }
+  }
 
   runtime.log(`Dashboard URL: ${dashboardUrl}`);
-  if (resolvedToken.tokenSecretRefConfigured && token) {
-    runtime.log(
-      "Token auto-auth is disabled for SecretRef-managed gateway.auth.token; use your external token source if prompted.",
-    );
-  }
-  if (resolvedToken.unresolvedRefReason) {
-    runtime.log(`Token auto-auth unavailable: ${resolvedToken.unresolvedRefReason}`);
-    runtime.log(
-      "Set OPENCLAW_GATEWAY_TOKEN in this shell or resolve your secret provider, then rerun `openclaw dashboard`.",
-    );
+  if (bootstrapTokenError) {
+    runtime.log(`Bootstrap auto-auth unavailable: ${bootstrapTokenError}`);
+  } else {
+    runtime.log("Dashboard URL uses a one-time device bootstrap token.");
   }
 
   const copied = await copyToClipboard(dashboardUrl).catch(() => false);
@@ -102,7 +115,7 @@ export async function dashboardCommand(
       hint = formatControlUiSshHint({
         port,
         basePath,
-        token: includeTokenInUrl ? token || undefined : undefined,
+        bootstrapToken,
       });
     }
   } else {

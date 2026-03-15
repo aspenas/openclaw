@@ -58,6 +58,8 @@ type SettingsHost = {
   pendingGatewayUrl?: string | null;
   systemThemeCleanup?: (() => void) | null;
   pendingGatewayToken?: string | null;
+  pendingGatewayBootstrapToken?: string | null;
+  gatewayBootstrapToken?: string | null;
 };
 
 export function applySettings(host: SettingsHost, next: UiSettings) {
@@ -98,6 +100,7 @@ export function applySettingsFromUrl(host: SettingsHost) {
   const nextGatewayUrl = gatewayUrlRaw?.trim() ?? "";
   const gatewayUrlChanged = Boolean(nextGatewayUrl && nextGatewayUrl !== host.settings.gatewayUrl);
   const tokenRaw = hashParams.get("token");
+  const bootstrapTokenRaw = hashParams.get("bootstrapToken");
   const passwordRaw = params.get("password") ?? hashParams.get("password");
   const sessionRaw = params.get("session") ?? hashParams.get("session");
   let shouldCleanUrl = false;
@@ -111,10 +114,25 @@ export function applySettingsFromUrl(host: SettingsHost) {
     const token = tokenRaw.trim();
     if (token && gatewayUrlChanged) {
       host.pendingGatewayToken = token;
+      host.pendingGatewayBootstrapToken = null;
     } else if (token && token !== host.settings.token) {
+      host.gatewayBootstrapToken = null;
       applySettings(host, { ...host.settings, token });
     }
     hashParams.delete("token");
+    shouldCleanUrl = true;
+  }
+
+  if (bootstrapTokenRaw != null) {
+    const bootstrapToken = bootstrapTokenRaw.trim();
+    if (bootstrapToken && gatewayUrlChanged) {
+      host.pendingGatewayBootstrapToken = bootstrapToken;
+      host.pendingGatewayToken = null;
+    } else if (bootstrapToken) {
+      host.gatewayBootstrapToken = bootstrapToken;
+      applySettings(host, { ...host.settings, token: "" });
+    }
+    hashParams.delete("bootstrapToken");
     shouldCleanUrl = true;
   }
 
@@ -143,9 +161,13 @@ export function applySettingsFromUrl(host: SettingsHost) {
       if (!tokenRaw?.trim()) {
         host.pendingGatewayToken = null;
       }
+      if (!bootstrapTokenRaw?.trim()) {
+        host.pendingGatewayBootstrapToken = null;
+      }
     } else {
       host.pendingGatewayUrl = null;
       host.pendingGatewayToken = null;
+      host.pendingGatewayBootstrapToken = null;
     }
     params.delete("gatewayUrl");
     hashParams.delete("gatewayUrl");

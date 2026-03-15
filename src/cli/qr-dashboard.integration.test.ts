@@ -145,11 +145,8 @@ describe("cli integration: qr + dashboard token SecretRef", () => {
     await runCli(["dashboard", "--no-open"]);
     const joined = runtimeLogs.join("\n");
     expect(joined).toContain("Dashboard URL: http://127.0.0.1:18789/");
-    expect(joined).not.toContain("#token=");
-    expect(joined).toContain(
-      "Token auto-auth is disabled for SecretRef-managed gateway.auth.token",
-    );
-    expect(joined).not.toContain("Token auto-auth unavailable");
+    expect(joined).toContain("#bootstrapToken=");
+    expect(joined).toContain("one-time device bootstrap token");
     expect(runtimeErrors).toEqual([]);
   });
 
@@ -172,8 +169,7 @@ describe("cli integration: qr + dashboard token SecretRef", () => {
     await runCli(["dashboard", "--no-open"]);
     const joined = runtimeLogs.join("\n");
     expect(joined).toContain("Dashboard URL: http://127.0.0.1:18789/");
-    expect(joined).not.toContain("#token=");
-    expect(joined).toContain("Token auto-auth unavailable");
-    expect(joined).toContain("Set OPENCLAW_GATEWAY_TOKEN");
+    expect(joined).toContain("#bootstrapToken=");
+    expect(joined).toContain("one-time device bootstrap token");
   });
 });

@@ -9,6 +9,7 @@ const openUrlMock = vi.hoisted(() => vi.fn());
 const formatControlUiSshHintMock = vi.hoisted(() => vi.fn());
 const copyToClipboardMock = vi.hoisted(() => vi.fn());
 const resolveSecretRefValuesMock = vi.hoisted(() => vi.fn());
+const issueDeviceBootstrapTokenMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../config/config.js", () => ({
   readConfigFileSnapshot: readConfigFileSnapshotMock,
@@ -28,6 +29,10 @@ vi.mock("../infra/clipboard.js", () => ({
 
 vi.mock("../secrets/resolve.js", () => ({
   resolveSecretRefValues: resolveSecretRefValuesMock,
+}));
+
+vi.mock("../infra/device-bootstrap.js", () => ({
+  issueDeviceBootstrapToken: issueDeviceBootstrapTokenMock,
 }));
 
 const runtime = {
@@ -59,6 +64,11 @@ function mockSnapshot(token: unknown = "abc") {
     wsUrl: "ws://127.0.0.1:18789",
   });
   resolveSecretRefValuesMock.mockReset();
+  issueDeviceBootstrapTokenMock.mockReset();
+  issueDeviceBootstrapTokenMock.mockResolvedValue({
+    token: "bootstrap-123",
+    expiresAtMs: Date.now() + 600_000,
+  });
 }
 
 describe("dashboardCommand", () => {
@@ -89,8 +99,12 @@ describe("dashboardCommand", () => {
       customBindHost: undefined,
       basePath: undefined,
     });
-    expect(copyToClipboardMock).toHaveBeenCalledWith("http://127.0.0.1:18789/#token=abc123");
-    expect(openUrlMock).toHaveBeenCalledWith("http://127.0.0.1:18789/#token=abc123");
+    expect(copyToClipboardMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:18789/#bootstrapToken=bootstrap-123",
+    );
+    expect(openUrlMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:18789/#bootstrapToken=bootstrap-123",
+    );
     expect(runtime.log).toHaveBeenCalledWith(
       "Opened in your browser. Keep that tab to control OpenClaw.",
     );
@@ -130,6 +144,7 @@ describe("dashboardCommand", () => {
       provider: "default",
       id: "MISSING_GATEWAY_TOKEN",
     });
+    issueDeviceBootstrapTokenMock.mockRejectedValue(new Error("bootstrap unavailable"));
     copyToClipboardMock.mockResolvedValue(true);
     detectBrowserOpenSupportMock.mockResolvedValue({ ok: true });
     openUrlMock.mockResolvedValue(true);
@@ -155,6 +170,7 @@ describe("dashboardCommand", () => {
       provider: "default",
       id: "MISSING_GATEWAY_TOKEN",
     });
+    issueDeviceBootstrapTokenMock.mockRejectedValue(new Error("bootstrap unavailable"));
     process.env.OPENCLAW_GATEWAY_TOKEN = "fallback-token";
     copyToClipboardMock.mockResolvedValue(true);
     detectBrowserOpenSupportMock.mockResolvedValue({ ok: true });
@@ -175,6 +191,7 @@ describe("dashboardCommand", () => {
 
   it("resolves env-template gateway.auth.token before building dashboard URL", async () => {
     mockSnapshot("${CUSTOM_GATEWAY_TOKEN}");
+    issueDeviceBootstrapTokenMock.mockRejectedValue(new Error("bootstrap unavailable"));
     copyToClipboardMock.mockResolvedValue(true);
     detectBrowserOpenSupportMock.mockResolvedValue({ ok: true });
     openUrlMock.mockResolvedValue(true);
@@ -188,6 +205,21 @@ describe("dashboardCommand", () => {
     expect(openUrlMock).toHaveBeenCalledWith("http://127.0.0.1:18789/");
     expect(runtime.log).toHaveBeenCalledWith(
       expect.stringContaining("Token auto-auth is disabled for SecretRef-managed"),
+    );
+  });
+
+  it("falls back to legacy tokenized URLs when bootstrap token issuance fails", async () => {
+    mockSnapshot("abc123");
+    issueDeviceBootstrapTokenMock.mockRejectedValue(new Error("bootstrap unavailable"));
+    copyToClipboardMock.mockResolvedValue(true);
+    detectBrowserOpenSupportMock.mockResolvedValue({ ok: true });
+    openUrlMock.mockResolvedValue(true);
+
+    await dashboardCommand(runtime);
+
+    expect(copyToClipboardMock).toHaveBeenCalledWith("http://127.0.0.1:18789/#token=abc123");
+    expect(runtime.log).toHaveBeenCalledWith(
+      expect.stringContaining("Bootstrap auto-auth unavailable"),
     );
   });
 });

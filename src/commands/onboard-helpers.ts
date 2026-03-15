@@ -206,13 +206,16 @@ export function formatControlUiSshHint(params: {
   port: number;
   basePath?: string;
   token?: string;
+  bootstrapToken?: string;
 }): string {
   const basePath = normalizeControlUiBasePath(params.basePath);
   const uiPath = basePath ? `${basePath}/` : "/";
   const localUrl = `http://localhost:${params.port}${uiPath}`;
-  const authedUrl = params.token
-    ? `${localUrl}#token=${encodeURIComponent(params.token)}`
-    : undefined;
+  const authedUrl = params.bootstrapToken
+    ? `${localUrl}#bootstrapToken=${encodeURIComponent(params.bootstrapToken)}`
+    : params.token
+      ? `${localUrl}#token=${encodeURIComponent(params.token)}`
+      : undefined;
   const sshTarget = resolveSshTargetHint();
   return [
     "No GUI detected. Open from your computer:",

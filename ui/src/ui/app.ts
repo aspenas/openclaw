@@ -192,6 +192,8 @@ export class OpenClawApp extends LitElement {
   @state() execApprovalError: string | null = null;
   @state() pendingGatewayUrl: string | null = null;
   pendingGatewayToken: string | null = null;
+  pendingGatewayBootstrapToken: string | null = null;
+  gatewayBootstrapToken: string | null = null;
 
   @state() configLoading = false;
   @state() configRaw = "{\n}\n";
@@ -667,12 +669,15 @@ export class OpenClawApp extends LitElement {
       return;
     }
     const nextToken = this.pendingGatewayToken?.trim() || "";
+    const nextBootstrapToken = this.pendingGatewayBootstrapToken?.trim() || null;
     this.pendingGatewayUrl = null;
     this.pendingGatewayToken = null;
+    this.pendingGatewayBootstrapToken = null;
+    this.gatewayBootstrapToken = nextBootstrapToken;
     applySettingsInternal(this as unknown as Parameters<typeof applySettingsInternal>[0], {
       ...this.settings,
       gatewayUrl: nextGatewayUrl,
-      token: nextToken,
+      token: nextBootstrapToken ? "" : nextToken,
     });
     this.connect();
   }
@@ -680,6 +685,7 @@ export class OpenClawApp extends LitElement {
   handleGatewayUrlCancel() {
     this.pendingGatewayUrl = null;
     this.pendingGatewayToken = null;
+    this.pendingGatewayBootstrapToken = null;
   }
 
   // Sidebar handlers for tool output viewing

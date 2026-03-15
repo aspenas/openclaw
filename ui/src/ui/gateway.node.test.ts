@@ -182,6 +182,67 @@ describe("GatewayBrowserClient", () => {
     expect(signedPayload).not.toContain("stored-device-token");
   });
 
+  it("prefers a stored device token over bootstrap auth on trusted reconnects", async () => {
+    const client = new GatewayBrowserClient({
+      url: "ws://127.0.0.1:18789",
+      bootstrapToken: "bootstrap-token",
+    });
+
+    client.start();
+    const ws = getLatestWebSocket();
+    ws.emitOpen();
+    ws.emitMessage({
+      type: "event",
+      event: "connect.challenge",
+      payload: { nonce: "nonce-1" },
+    });
+    await vi.waitFor(() => expect(ws.sent.length).toBeGreaterThan(0));
+
+    const connectFrame = JSON.parse(ws.sent.at(-1) ?? "{}") as {
+      id?: string;
+      method?: string;
+      params?: { auth?: { token?: string; bootstrapToken?: string; deviceToken?: string } };
+    };
+    expect(typeof connectFrame.id).toBe("string");
+    expect(connectFrame.method).toBe("connect");
+    expect(connectFrame.params?.auth?.token).toBe("stored-device-token");
+    expect(connectFrame.params?.auth?.bootstrapToken).toBeUndefined();
+    expect(connectFrame.params?.auth?.deviceToken).toBe("stored-device-token");
+    const signedPayload = signDevicePayloadMock.mock.calls.at(-1)?.[1];
+    expect(signedPayload).toContain("|stored-device-token|nonce-1");
+  });
+
+  it("sends bootstrap auth when no stored device token exists", async () => {
+    localStorage.clear();
+    const client = new GatewayBrowserClient({
+      url: "ws://127.0.0.1:18789",
+      bootstrapToken: "bootstrap-token",
+    });
+
+    client.start();
+    const ws = getLatestWebSocket();
+    ws.emitOpen();
+    ws.emitMessage({
+      type: "event",
+      event: "connect.challenge",
+      payload: { nonce: "nonce-1" },
+    });
+    await vi.waitFor(() => expect(ws.sent.length).toBeGreaterThan(0));
+
+    const connectFrame = JSON.parse(ws.sent.at(-1) ?? "{}") as {
+      id?: string;
+      method?: string;
+      params?: { auth?: { token?: string; bootstrapToken?: string; deviceToken?: string } };
+    };
+    expect(typeof connectFrame.id).toBe("string");
+    expect(connectFrame.method).toBe("connect");
+    expect(connectFrame.params?.auth?.token).toBeUndefined();
+    expect(connectFrame.params?.auth?.bootstrapToken).toBe("bootstrap-token");
+    expect(connectFrame.params?.auth?.deviceToken).toBeUndefined();
+    const signedPayload = signDevicePayloadMock.mock.calls.at(-1)?.[1];
+    expect(signedPayload).toContain("|bootstrap-token|nonce-1");
+  });
+
   it("sends explicit shared token on insecure first connect without cached device fallback", async () => {
     stubInsecureCrypto();
     const client = new GatewayBrowserClient({

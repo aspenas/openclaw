@@ -82,6 +82,7 @@ type GatewayHost = {
   execApprovalQueue: ExecApprovalRequest[];
   execApprovalError: string | null;
   updateAvailable: UpdateAvailable | null;
+  gatewayBootstrapToken?: string | null;
 };
 
 type SessionDefaultsSnapshot = {
@@ -186,6 +187,7 @@ export function connectGateway(host: GatewayHost) {
   const client = new GatewayBrowserClient({
     url: host.settings.gatewayUrl,
     token: host.settings.token.trim() ? host.settings.token : undefined,
+    bootstrapToken: host.gatewayBootstrapToken?.trim() || undefined,
     password: host.password.trim() ? host.password : undefined,
     clientName: "openclaw-control-ui",
     clientVersion,
@@ -199,6 +201,7 @@ export function connectGateway(host: GatewayHost) {
       host.lastError = null;
       host.lastErrorCode = null;
       host.hello = hello;
+      host.gatewayBootstrapToken = null;
       applySnapshot(host, hello);
       // Reset orphaned chat run state from before disconnect.
       // Any in-flight run's final event was lost during the disconnect window.

@@ -367,6 +367,16 @@ describe("control UI routing", () => {
     expect(window.location.hash).toBe("");
   });
 
+  it("hydrates bootstrap token from URL hash and strips it", async () => {
+    const app = mountApp("/ui/overview#bootstrapToken=boot123");
+    await app.updateComplete;
+
+    expect(app.gatewayBootstrapToken).toBe("boot123");
+    expect(app.settings.token).toBe("");
+    expect(window.location.pathname).toBe("/ui/overview");
+    expect(window.location.hash).toBe("");
+  });
+
   it("clears the current token when the gateway URL changes", async () => {
     const app = mountApp("/ui/overview#token=abc123");
     await app.updateComplete;
@@ -401,6 +411,29 @@ describe("control UI routing", () => {
 
     expect(app.settings.gatewayUrl).toBe("wss://other-gateway.example/openclaw");
     expect(app.settings.token).toBe("abc123");
+    expect(window.location.search).toBe("");
+    expect(window.location.hash).toBe("");
+  });
+
+  it("keeps a hash bootstrap token pending until the gateway URL change is confirmed", async () => {
+    const app = mountApp(
+      "/ui/overview?gatewayUrl=wss://other-gateway.example/openclaw#bootstrapToken=boot123",
+    );
+    await app.updateComplete;
+
+    expect(app.settings.gatewayUrl).not.toBe("wss://other-gateway.example/openclaw");
+    expect(app.gatewayBootstrapToken).toBeNull();
+
+    const confirmButton = Array.from(app.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.trim() === "Confirm",
+    );
+    expect(confirmButton).not.toBeUndefined();
+    confirmButton?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await app.updateComplete;
+
+    expect(app.settings.gatewayUrl).toBe("wss://other-gateway.example/openclaw");
+    expect(app.gatewayBootstrapToken).toBe("boot123");
+    expect(app.settings.token).toBe("");
     expect(window.location.search).toBe("");
     expect(window.location.hash).toBe("");
   });
