@@ -42,7 +42,7 @@ describe("deliverReplies", () => {
     chunkTextWithModeMock.mockImplementation((text: string) => [text]);
   });
 
-  it("propagates payload replyToId through all text chunks", async () => {
+  it("does not propagate unsupported payload replyToId through text chunks", async () => {
     chunkTextWithModeMock.mockImplementation((text: string) => text.split("|"));
 
     await deliverReplies({
@@ -64,7 +64,6 @@ describe("deliverReplies", () => {
         client,
         maxBytes: 4096,
         accountId: "default",
-        replyToId: "reply-1",
       }),
     );
     expect(sendMessageIMessageMock).toHaveBeenNthCalledWith(
@@ -75,12 +74,15 @@ describe("deliverReplies", () => {
         client,
         maxBytes: 4096,
         accountId: "default",
-        replyToId: "reply-1",
       }),
     );
+    const firstOptions = sendMessageIMessageMock.mock.calls[0]?.[2];
+    const secondOptions = sendMessageIMessageMock.mock.calls[1]?.[2];
+    expect(firstOptions?.replyToId).toBeUndefined();
+    expect(secondOptions?.replyToId).toBeUndefined();
   });
 
-  it("propagates payload replyToId through media sends", async () => {
+  it("does not propagate unsupported payload replyToId through media sends", async () => {
     await deliverReplies({
       replies: [
         {
@@ -107,7 +109,6 @@ describe("deliverReplies", () => {
         client,
         maxBytes: 8192,
         accountId: "acct-2",
-        replyToId: "reply-2",
       }),
     );
     expect(sendMessageIMessageMock).toHaveBeenNthCalledWith(
@@ -119,9 +120,12 @@ describe("deliverReplies", () => {
         client,
         maxBytes: 8192,
         accountId: "acct-2",
-        replyToId: "reply-2",
       }),
     );
+    const firstOptions = sendMessageIMessageMock.mock.calls[0]?.[2];
+    const secondOptions = sendMessageIMessageMock.mock.calls[1]?.[2];
+    expect(firstOptions?.replyToId).toBeUndefined();
+    expect(secondOptions?.replyToId).toBeUndefined();
   });
 
   it("records outbound text and message ids in sent-message cache", async () => {
@@ -146,6 +150,27 @@ describe("deliverReplies", () => {
     });
     expect(remember).toHaveBeenCalledWith("acct-3:chat_id:30", {
       text: "second",
+      messageId: "imsg-1",
+    });
+  });
+
+  it("records the visible iMessage text in sent-message cache after stripping inline tags", async () => {
+    const remember = vi.fn();
+
+    await deliverReplies({
+      replies: [{ text: "[[reply_to:123]] hello [[audio_as_voice]] there" }],
+      target: "chat_id:31",
+      client,
+      accountId: "acct-4",
+      runtime,
+      maxBytes: 2048,
+      textLimit: 4000,
+      sentMessageCache: { remember },
+    });
+
+    expect(remember).toHaveBeenCalledWith("acct-4:chat_id:31", { text: "hello there" });
+    expect(remember).toHaveBeenCalledWith("acct-4:chat_id:31", {
+      text: "hello there",
       messageId: "imsg-1",
     });
   });

@@ -5,6 +5,7 @@ import { resolveMarkdownTableMode } from "../../config/markdown-tables.js";
 import { convertMarkdownTables } from "../../markdown/tables.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import type { createIMessageRpcClient } from "../client.js";
+import { normalizeIMessageOutboundText } from "../outbound-text.js";
 import { sendMessageIMessage } from "../send.js";
 import type { SentMessageCache } from "./echo-cache.js";
 import { sanitizeOutboundText } from "./sanitize-outbound.js";
@@ -36,16 +37,19 @@ export async function deliverReplies(params: {
     if (!text && mediaList.length === 0) {
       continue;
     }
+    const visibleText = normalizeIMessageOutboundText(text);
     if (mediaList.length === 0) {
-      sentMessageCache?.remember(scope, { text });
+      sentMessageCache?.remember(scope, { text: visibleText });
       for (const chunk of chunkTextWithMode(text, textLimit, chunkMode)) {
         const sent = await sendMessageIMessage(target, chunk, {
           maxBytes,
           client,
           accountId,
-          replyToId: payload.replyToId,
         });
-        sentMessageCache?.remember(scope, { text: chunk, messageId: sent.messageId });
+        sentMessageCache?.remember(scope, {
+          text: normalizeIMessageOutboundText(chunk),
+          messageId: sent.messageId,
+        });
       }
     } else {
       let first = true;
@@ -57,10 +61,9 @@ export async function deliverReplies(params: {
           maxBytes,
           client,
           accountId,
-          replyToId: payload.replyToId,
         });
         sentMessageCache?.remember(scope, {
-          text: caption || undefined,
+          text: caption ? normalizeIMessageOutboundText(caption) : undefined,
           messageId: sent.messageId,
         });
       }

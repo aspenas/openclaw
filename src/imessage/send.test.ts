@@ -90,36 +90,32 @@ describe("sendMessageIMessage", () => {
     expect(result.messageId).toBe("123");
   });
 
-  it("prepends reply tag as the first token when replyToId is provided", async () => {
+  it("does not prepend reply tags into outbound iMessage text", async () => {
     await sendWithDefaults("chat_id:123", "  hello\nworld", {
       replyToId: "abc-123",
     });
     const params = getSentParams();
-    expect(params.text).toBe("[[reply_to:abc-123]] hello\nworld");
+    expect(params.text).toBe("hello\nworld");
   });
 
-  it("rewrites an existing leading reply tag to keep the requested id first", async () => {
+  it("strips inline reply tags from outbound iMessage text", async () => {
     await sendWithDefaults("chat_id:123", " [[reply_to:old-id]] hello", {
       replyToId: "new-id",
     });
     const params = getSentParams();
-    expect(params.text).toBe("[[reply_to:new-id]] hello");
-  });
-
-  it("sanitizes replyToId before writing the leading reply tag", async () => {
-    await sendWithDefaults("chat_id:123", "hello", {
-      replyToId: " [ab]\n\u0000c\td ] ",
-    });
-    const params = getSentParams();
-    expect(params.text).toBe("[[reply_to:abcd]] hello");
-  });
-
-  it("skips reply tagging when sanitized replyToId is empty", async () => {
-    await sendWithDefaults("chat_id:123", "hello", {
-      replyToId: "[]\u0000\n\r",
-    });
-    const params = getSentParams();
     expect(params.text).toBe("hello");
+  });
+
+  it("strips other inline directive tags from outbound iMessage text", async () => {
+    await sendWithDefaults("chat_id:123", "hello [[audio_as_voice]] there");
+    const params = getSentParams();
+    expect(params.text).toBe("hello there");
+  });
+
+  it("rejects tag-only text when no visible message remains", async () => {
+    await expect(sendWithDefaults("chat_id:123", "[[reply_to_current]]")).rejects.toThrow(
+      "iMessage send requires visible text or media",
+    );
   });
 
   it("normalizes string message_id values from rpc result", async () => {

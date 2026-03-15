@@ -5,6 +5,7 @@ import { kindFromMime } from "../media/mime.js";
 import { resolveOutboundAttachmentFromUrl } from "../media/outbound-attachment.js";
 import { resolveIMessageAccount, type ResolvedIMessageAccount } from "./accounts.js";
 import { createIMessageRpcClient, type IMessageRpcClient } from "./client.js";
+import { normalizeIMessageOutboundText } from "./outbound-text.js";
 import { formatIMessageChatTarget, type IMessageService, parseIMessageTarget } from "./targets.js";
 
 export type IMessageSendOpts = {
@@ -13,6 +14,11 @@ export type IMessageSendOpts = {
   service?: IMessageService;
   region?: string;
   accountId?: string;
+  /**
+   * Accepted for cross-channel call-site compatibility only.
+   * The current imsg transport does not support native reply threading, so this
+   * value is intentionally ignored for outbound iMessage sends.
+   */
   replyToId?: string;
   mediaUrl?: string;
   mediaLocalRoots?: readonly string[];
@@ -33,51 +39,6 @@ export type IMessageSendOpts = {
 export type IMessageSendResult = {
   messageId: string;
 };
-
-const LEADING_REPLY_TAG_RE = /^\s*\[\[\s*reply_to\s*:\s*([^\]\n]+)\s*\]\]\s*/i;
-const MAX_REPLY_TO_ID_LENGTH = 256;
-
-function stripUnsafeReplyTagChars(value: string): string {
-  let next = "";
-  for (const ch of value) {
-    const code = ch.charCodeAt(0);
-    if ((code >= 0 && code <= 31) || code === 127 || ch === "[" || ch === "]") {
-      continue;
-    }
-    next += ch;
-  }
-  return next;
-}
-
-function sanitizeReplyToId(rawReplyToId?: string): string | undefined {
-  const trimmed = rawReplyToId?.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-  const sanitized = stripUnsafeReplyTagChars(trimmed).trim();
-  if (!sanitized) {
-    return undefined;
-  }
-  if (sanitized.length > MAX_REPLY_TO_ID_LENGTH) {
-    return sanitized.slice(0, MAX_REPLY_TO_ID_LENGTH);
-  }
-  return sanitized;
-}
-
-function prependReplyTagIfNeeded(message: string, replyToId?: string): string {
-  const resolvedReplyToId = sanitizeReplyToId(replyToId);
-  if (!resolvedReplyToId) {
-    return message;
-  }
-  const replyTag = `[[reply_to:${resolvedReplyToId}]]`;
-  const existingLeadingTag = message.match(LEADING_REPLY_TAG_RE);
-  if (existingLeadingTag) {
-    const remainder = message.slice(existingLeadingTag[0].length).trimStart();
-    return remainder ? `${replyTag} ${remainder}` : replyTag;
-  }
-  const trimmedMessage = message.trimStart();
-  return trimmedMessage ? `${replyTag} ${trimmedMessage}` : replyTag;
-}
 
 function resolveMessageId(result: Record<string, unknown> | null | undefined): string | null {
   if (!result) {
@@ -147,7 +108,10 @@ export async function sendMessageIMessage(
     });
     message = convertMarkdownTables(message, tableMode);
   }
-  message = prependReplyTagIfNeeded(message, opts.replyToId);
+  message = normalizeIMessageOutboundText(message);
+  if (!message.trim() && !filePath) {
+    throw new Error("iMessage send requires visible text or media");
+  }
 
   const params: Record<string, unknown> = {
     text: message,
