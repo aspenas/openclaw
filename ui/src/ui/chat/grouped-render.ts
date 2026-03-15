@@ -7,6 +7,7 @@ import { openExternalUrlSafe } from "../open-external-url.ts";
 import { detectTextDirection } from "../text-direction.ts";
 import type { MessageGroup, ToolCard } from "../types/chat-types.ts";
 import { agentLogoUrl } from "../views/agents-utils.ts";
+import { TOOL_RESULT_RENDER_CHAR_LIMIT } from "./constants.ts";
 import { renderCopyAsMarkdownButton } from "./copy-as-markdown.ts";
 import {
   extractTextCached,
@@ -644,6 +645,8 @@ function renderGroupedMessage(
   const reasoningMarkdown = extractedThinking ? formatReasoningMarkdown(extractedThinking) : null;
   const markdown = markdownBase;
   const canCopyMarkdown = role === "assistant" && Boolean(markdown?.trim());
+  const shouldCollapseLargeToolResult =
+    isToolResult && (markdown?.length ?? 0) > TOOL_RESULT_RENDER_CHAR_LIMIT;
 
   // Detect pure-JSON messages and render as collapsible block
   const jsonResult = markdown && !opts.isStreaming ? detectJson(markdown) : null;
@@ -654,6 +657,22 @@ function renderGroupedMessage(
 
   if (!markdown && hasToolCards && isToolResult) {
     return renderCollapsedToolCards(toolCards, onOpenSidebar);
+  }
+
+  if (shouldCollapseLargeToolResult) {
+    const canInspectFullOutput = Boolean(hasToolCards && onOpenSidebar);
+    return html`
+      <div class="${bubbleClasses}">
+        <div class="muted">
+          ${
+            canInspectFullOutput
+              ? "Large tool output hidden from inline chat. Open the tool card to inspect the full result."
+              : "Large tool output hidden from inline chat to keep the session stable."
+          }
+        </div>
+      </div>
+      ${toolCards.map((card) => renderToolCardSidebar(card, onOpenSidebar))}
+    `;
   }
 
   if (!markdown && !hasToolCards && !hasImages) {

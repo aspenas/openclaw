@@ -421,6 +421,33 @@ describe("chat view", () => {
     expect(container.textContent).not.toContain("Stop");
   });
 
+  it("collapses oversized tool results instead of rendering them inline", () => {
+    const container = document.createElement("div");
+    const hugeOutput = "A".repeat(20_000);
+    render(
+      renderChat(
+        createProps({
+          showThinking: true,
+          messages: [
+            {
+              role: "toolResult",
+              toolCallId: "call_123",
+              toolName: "exec",
+              content: [{ type: "text", text: hugeOutput }],
+              timestamp: Date.now(),
+            },
+          ],
+          onOpenSidebar: () => undefined,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".chat-tool-card")).not.toBeNull();
+    expect(container.textContent).toContain("Large tool output hidden from inline chat");
+    expect(container.textContent).not.toContain(hugeOutput.slice(0, 5_000));
+  });
+
   it("shows sender labels from sanitized gateway messages instead of generic You", () => {
     const container = document.createElement("div");
     render(

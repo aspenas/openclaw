@@ -1,3 +1,5 @@
+/* @vitest-environment jsdom */
+
 import { render } from "lit";
 import { describe, expect, it } from "vitest";
 import type { SessionsListResult } from "../types.ts";
@@ -10,6 +12,16 @@ function buildResult(session: SessionsListResult["sessions"][number]): SessionsL
     count: 1,
     defaults: { model: null, contextTokens: null },
     sessions: [session],
+  };
+}
+
+function buildResultList(sessions: SessionsListResult["sessions"]): SessionsListResult {
+  return {
+    ts: Date.now(),
+    path: "(multiple)",
+    count: sessions.length,
+    defaults: { model: null, contextTokens: null },
+    sessions,
   };
 }
 
@@ -110,5 +122,62 @@ describe("sessions view", () => {
     const selects = container.querySelectorAll("select");
     const fast = selects[1] as HTMLSelectElement | undefined;
     expect(fast?.value).toBe("on");
+  });
+
+  it("groups sessions by sessionKind metadata", async () => {
+    const container = document.createElement("div");
+    render(
+      renderSessions(
+        buildProps(
+          buildResultList([
+            {
+              key: "agent:main:main",
+              kind: "direct",
+              updatedAt: Date.now(),
+              sessionKind: "human",
+              project: "patrick",
+              retentionClass: "durable",
+            },
+            {
+              key: "agent:ops:heartbeat",
+              kind: "direct",
+              updatedAt: Date.now() - 1_000,
+              sessionKind: "automation",
+              project: "openclaw-runtime",
+              retentionClass: "operational",
+            },
+            {
+              key: "agent:wake:main",
+              kind: "direct",
+              updatedAt: Date.now() - 2_000,
+              sessionKind: "project",
+              project: "wake",
+              retentionClass: "durable",
+            },
+            {
+              key: "agent:main:subagent:test",
+              kind: "subagent",
+              updatedAt: Date.now() - 3_000,
+              sessionKind: "ephemeral",
+              project: "subagent",
+              retentionClass: "ephemeral",
+            },
+          ]),
+        ),
+      ),
+      container,
+    );
+    await Promise.resolve();
+
+    const titles = Array.from(container.querySelectorAll(".session-group-panel__title")).map(
+      (node) => node.textContent?.trim(),
+    );
+    expect(titles).toEqual(["Human Threads", "Automation", "Project Agents", "Ephemeral"]);
+    expect(container.textContent).toContain(
+      "Patrick-facing conversations and durable messaging threads.",
+    );
+    expect(container.textContent).toContain(
+      "Cron, hook, heartbeat, and runtime-owned operational sessions.",
+    );
   });
 });

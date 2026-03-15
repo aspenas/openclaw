@@ -30,7 +30,7 @@ import { loadHealthState } from "./controllers/health.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import {
-  resolveGatewayErrorDetailCode,
+  resolveGatewayCloseDetailCode,
   type GatewayEventFrame,
   type GatewayHelloOk,
 } from "./gateway.ts";
@@ -220,7 +220,7 @@ export function connectGateway(host: GatewayHost) {
       host.connected = false;
       // Code 1012 = Service Restart (expected during config saves, don't show as error)
       host.lastErrorCode =
-        resolveGatewayErrorDetailCode(error) ??
+        resolveGatewayCloseDetailCode({ code, reason, error }) ??
         (typeof error?.code === "string" ? error.code : null);
       if (code !== 1012) {
         if (error?.message) {

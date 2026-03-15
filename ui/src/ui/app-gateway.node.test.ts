@@ -32,6 +32,31 @@ vi.mock("./gateway.ts", () => {
     return typeof code === "string" ? code : null;
   }
 
+  function resolveGatewayCloseDetailCode(params: {
+    code: number;
+    reason: string;
+    error?: { details?: unknown } | null;
+  }): string | null {
+    const structured = resolveGatewayErrorDetailCode(params.error);
+    if (structured) {
+      return structured;
+    }
+    if (params.code !== 1008) {
+      return null;
+    }
+    const normalized = params.reason.trim().toLowerCase();
+    if (normalized === "pairing required") {
+      return ConnectErrorDetailCodes.PAIRING_REQUIRED;
+    }
+    if (normalized === "device identity required") {
+      return ConnectErrorDetailCodes.DEVICE_IDENTITY_REQUIRED;
+    }
+    if (normalized.startsWith("control ui requires device identity")) {
+      return ConnectErrorDetailCodes.CONTROL_UI_DEVICE_IDENTITY_REQUIRED;
+    }
+    return null;
+  }
+
   class GatewayBrowserClient {
     readonly start = vi.fn();
     readonly stop = vi.fn();
@@ -69,7 +94,7 @@ vi.mock("./gateway.ts", () => {
     }
   }
 
-  return { GatewayBrowserClient, resolveGatewayErrorDetailCode };
+  return { GatewayBrowserClient, resolveGatewayCloseDetailCode, resolveGatewayErrorDetailCode };
 });
 
 vi.mock("./controllers/chat.ts", async (importOriginal) => {
@@ -290,6 +315,22 @@ describe("connectGateway", () => {
 
     expect(host.lastErrorCode).toBe(ConnectErrorDetailCodes.CONTROL_UI_DEVICE_IDENTITY_REQUIRED);
     expect(host.lastError).toContain("device identity required");
+  });
+
+  it("infers pairing guidance from a 1008 close reason without structured error details", () => {
+    const host = createHost();
+
+    connectGateway(host);
+    const client = gatewayClientInstances[0];
+    expect(client).toBeDefined();
+
+    client.emitClose({
+      code: 1008,
+      reason: "pairing required",
+    });
+
+    expect(host.lastErrorCode).toBe(ConnectErrorDetailCodes.PAIRING_REQUIRED);
+    expect(host.lastError).toBe("disconnected (1008): pairing required");
   });
 
   it("maps generic fetch failures to actionable origin guidance", () => {

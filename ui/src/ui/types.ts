@@ -370,6 +370,9 @@ export type GatewaySessionRow = {
   kind: "direct" | "group" | "global" | "unknown";
   label?: string;
   displayName?: string;
+  sessionKind?: "human" | "automation" | "project" | "ephemeral";
+  project?: string;
+  retentionClass?: "durable" | "operational" | "ephemeral";
   surface?: string;
   subject?: string;
   room?: string;

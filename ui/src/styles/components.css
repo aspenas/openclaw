@@ -1682,6 +1682,42 @@
   font-size: 11px;
 }
 
+.session-key-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.session-key-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: var(--bg-elevated);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+.session-key-badge[data-tone="project"] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.session-key-badge[data-tone="kind"] {
+  color: var(--text-strong);
+}
+
+.session-key-badge[data-tone="retention"] {
+  color: var(--info);
+  border-color: color-mix(in srgb, var(--info) 25%, var(--border));
+  background: color-mix(in srgb, var(--info) 10%, transparent);
+}
+
 /* ===========================================
    Data Table
    =========================================== */
@@ -1724,6 +1760,69 @@
 }
 
 .data-table-search input::placeholder {
+  color: var(--muted);
+}
+
+.session-group-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-elevated) 80%, transparent);
+}
+
+.session-group-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+}
+
+.session-group-chip[data-empty] {
+  opacity: 0.55;
+}
+
+.session-group-chip__label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.session-group-chip__count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.session-group-panel + .session-group-panel {
+  border-top: 1px solid var(--border);
+}
+
+.session-group-panel__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 12px 10px;
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+}
+
+.session-group-panel__title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-strong);
+}
+
+.session-group-panel__sub {
+  margin-top: 4px;
+  font-size: 12px;
   color: var(--muted);
 }
 

@@ -54,6 +54,47 @@ export function resolveGatewayErrorDetailCode(
   return readConnectErrorDetailCode(error?.details);
 }
 
+function resolveGatewayCloseReasonDetailCode(code: number, reason: string): string | null {
+  if (code !== 1008) {
+    return null;
+  }
+  const normalized = reason.trim().toLowerCase();
+  if (normalized === "pairing required") {
+    return ConnectErrorDetailCodes.PAIRING_REQUIRED;
+  }
+  if (normalized === "device identity required") {
+    return ConnectErrorDetailCodes.DEVICE_IDENTITY_REQUIRED;
+  }
+  if (normalized.startsWith("control ui requires device identity")) {
+    return ConnectErrorDetailCodes.CONTROL_UI_DEVICE_IDENTITY_REQUIRED;
+  }
+  return null;
+}
+
+function isNonRecoverableAuthDetailCode(code: string | null): boolean {
+  return (
+    code === ConnectErrorDetailCodes.AUTH_TOKEN_MISSING ||
+    code === ConnectErrorDetailCodes.AUTH_BOOTSTRAP_TOKEN_INVALID ||
+    code === ConnectErrorDetailCodes.AUTH_PASSWORD_MISSING ||
+    code === ConnectErrorDetailCodes.AUTH_PASSWORD_MISMATCH ||
+    code === ConnectErrorDetailCodes.AUTH_RATE_LIMITED ||
+    code === ConnectErrorDetailCodes.PAIRING_REQUIRED ||
+    code === ConnectErrorDetailCodes.CONTROL_UI_DEVICE_IDENTITY_REQUIRED ||
+    code === ConnectErrorDetailCodes.DEVICE_IDENTITY_REQUIRED
+  );
+}
+
+export function resolveGatewayCloseDetailCode(params: {
+  code: number;
+  reason: string;
+  error?: { details?: unknown } | null;
+}): string | null {
+  return (
+    resolveGatewayErrorDetailCode(params.error) ??
+    resolveGatewayCloseReasonDetailCode(params.code, params.reason)
+  );
+}
+
 /**
  * Auth errors that won't resolve without user action — don't auto-reconnect.
  *
@@ -66,17 +107,7 @@ export function isNonRecoverableAuthError(error: GatewayErrorInfo | undefined): 
   if (!error) {
     return false;
   }
-  const code = resolveGatewayErrorDetailCode(error);
-  return (
-    code === ConnectErrorDetailCodes.AUTH_TOKEN_MISSING ||
-    code === ConnectErrorDetailCodes.AUTH_BOOTSTRAP_TOKEN_INVALID ||
-    code === ConnectErrorDetailCodes.AUTH_PASSWORD_MISSING ||
-    code === ConnectErrorDetailCodes.AUTH_PASSWORD_MISMATCH ||
-    code === ConnectErrorDetailCodes.AUTH_RATE_LIMITED ||
-    code === ConnectErrorDetailCodes.PAIRING_REQUIRED ||
-    code === ConnectErrorDetailCodes.CONTROL_UI_DEVICE_IDENTITY_REQUIRED ||
-    code === ConnectErrorDetailCodes.DEVICE_IDENTITY_REQUIRED
-  );
+  return isNonRecoverableAuthDetailCode(resolveGatewayErrorDetailCode(error));
 }
 
 function isTrustedRetryEndpoint(url: string): boolean {
@@ -194,7 +225,11 @@ export class GatewayBrowserClient {
       this.ws = null;
       this.flushPending(new Error(`gateway closed (${ev.code}): ${reason}`));
       this.opts.onClose?.({ code: ev.code, reason, error: connectError });
-      const connectErrorCode = resolveGatewayErrorDetailCode(connectError);
+      const connectErrorCode = resolveGatewayCloseDetailCode({
+        code: ev.code,
+        reason,
+        error: connectError,
+      });
       if (
         connectErrorCode === ConnectErrorDetailCodes.AUTH_TOKEN_MISMATCH &&
         this.deviceTokenRetryBudgetUsed &&
@@ -202,7 +237,7 @@ export class GatewayBrowserClient {
       ) {
         return;
       }
-      if (!isNonRecoverableAuthError(connectError)) {
+      if (!isNonRecoverableAuthDetailCode(connectErrorCode)) {
         this.scheduleReconnect();
       }
     });

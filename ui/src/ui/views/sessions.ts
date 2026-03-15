@@ -60,6 +60,38 @@ const FAST_LEVELS = [
 ] as const;
 const REASONING_LEVELS = ["", "off", "on", "stream"] as const;
 const PAGE_SIZES = [10, 25, 50, 100] as const;
+type SessionGroupKey = "human" | "automation" | "project" | "ephemeral" | "uncategorized";
+
+const SESSION_GROUP_ORDER: SessionGroupKey[] = [
+  "human",
+  "automation",
+  "project",
+  "ephemeral",
+  "uncategorized",
+];
+
+const SESSION_GROUP_META: Record<SessionGroupKey, { title: string; description: string }> = {
+  human: {
+    title: "Human Threads",
+    description: "Patrick-facing conversations and durable messaging threads.",
+  },
+  automation: {
+    title: "Automation",
+    description: "Cron, hook, heartbeat, and runtime-owned operational sessions.",
+  },
+  project: {
+    title: "Project Agents",
+    description: "Focused project or workspace sessions.",
+  },
+  ephemeral: {
+    title: "Ephemeral",
+    description: "Subagents, ACP runs, and short-retention execution residue.",
+  },
+  uncategorized: {
+    title: "Uncategorized",
+    description: "Sessions missing classification metadata.",
+  },
+};
 
 function normalizeProviderId(provider?: string | null): string {
   if (!provider) {
@@ -136,7 +168,18 @@ function filterRows(rows: GatewaySessionRow[], query: string): GatewaySessionRow
     const label = (row.label ?? "").toLowerCase();
     const kind = (row.kind ?? "").toLowerCase();
     const displayName = (row.displayName ?? "").toLowerCase();
-    return key.includes(q) || label.includes(q) || kind.includes(q) || displayName.includes(q);
+    const sessionKind = (row.sessionKind ?? "").toLowerCase();
+    const project = (row.project ?? "").toLowerCase();
+    const retentionClass = (row.retentionClass ?? "").toLowerCase();
+    return (
+      key.includes(q) ||
+      label.includes(q) ||
+      kind.includes(q) ||
+      displayName.includes(q) ||
+      sessionKind.includes(q) ||
+      project.includes(q) ||
+      retentionClass.includes(q)
+    );
   });
 }
 
@@ -177,6 +220,49 @@ function paginateRows<T>(rows: T[], page: number, pageSize: number): T[] {
   return rows.slice(start, start + pageSize);
 }
 
+function resolveSessionGroupKey(row: GatewaySessionRow): SessionGroupKey {
+  switch (row.sessionKind) {
+    case "human":
+    case "automation":
+    case "project":
+    case "ephemeral":
+      return row.sessionKind;
+    default:
+      return "uncategorized";
+  }
+}
+
+function countRowsByGroup(rows: GatewaySessionRow[]): Record<SessionGroupKey, number> {
+  return rows.reduce(
+    (acc, row) => {
+      acc[resolveSessionGroupKey(row)] += 1;
+      return acc;
+    },
+    {
+      human: 0,
+      automation: 0,
+      project: 0,
+      ephemeral: 0,
+      uncategorized: 0,
+    } satisfies Record<SessionGroupKey, number>,
+  );
+}
+
+function groupRows(
+  rows: GatewaySessionRow[],
+): Array<{ key: SessionGroupKey; rows: GatewaySessionRow[] }> {
+  const grouped = new Map<SessionGroupKey, GatewaySessionRow[]>();
+  for (const row of rows) {
+    const key = resolveSessionGroupKey(row);
+    const existing = grouped.get(key) ?? [];
+    existing.push(row);
+    grouped.set(key, existing);
+  }
+  return SESSION_GROUP_ORDER.map((key) => ({ key, rows: grouped.get(key) ?? [] })).filter(
+    (group) => group.rows.length > 0,
+  );
+}
+
 export function renderSessions(props: SessionsProps) {
   const rawRows = props.result?.sessions ?? [];
   const filtered = filterRows(rawRows, props.searchQuery);
@@ -185,6 +271,8 @@ export function renderSessions(props: SessionsProps) {
   const totalPages = Math.max(1, Math.ceil(totalRows / props.pageSize));
   const page = Math.min(props.page, totalPages - 1);
   const paginated = paginateRows(sorted, page, props.pageSize);
+  const summaryCounts = countRowsByGroup(filtered);
+  const groupedRows = groupRows(paginated);
 
   const sortHeader = (col: "key" | "kind" | "updated" | "tokens", label: string) => {
     const isActive = props.sortColumn === col;
@@ -200,6 +288,50 @@ export function renderSessions(props: SessionsProps) {
       </th>
     `;
   };
+
+  const renderSessionsTable = (rows: GatewaySessionRow[]) => html`
+    <div class="data-table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            ${sortHeader("key", "Key")}
+            <th>Label</th>
+            ${sortHeader("kind", "Kind")}
+            ${sortHeader("updated", "Updated")}
+            ${sortHeader("tokens", "Tokens")}
+            <th>Thinking</th>
+            <th>Fast</th>
+            <th>Verbose</th>
+            <th>Reasoning</th>
+            <th style="width: 60px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            rows.length === 0
+              ? html`
+                  <tr>
+                    <td colspan="10" style="text-align: center; padding: 48px 16px; color: var(--muted)">
+                      No sessions found.
+                    </td>
+                  </tr>
+                `
+              : rows.map((row) =>
+                  renderRow(
+                    row,
+                    props.basePath,
+                    props.onPatch,
+                    props.onDelete,
+                    props.onActionsOpenChange,
+                    props.actionsOpenKey,
+                    props.loading,
+                  ),
+                )
+          }
+        </tbody>
+      </table>
+    </div>
+  `;
 
   return html`
     ${
@@ -295,54 +427,46 @@ export function renderSessions(props: SessionsProps) {
           <div class="data-table-search">
             <input
               type="text"
-              placeholder="Filter by key, label, kind…"
+              placeholder="Filter by key, label, project, kind…"
               .value=${props.searchQuery}
               @input=${(e: Event) => props.onSearchChange((e.target as HTMLInputElement).value)}
             />
           </div>
         </div>
 
-        <div class="data-table-container">
-          <table class="data-table">
-            <thead>
-              <tr>
-                ${sortHeader("key", "Key")}
-                <th>Label</th>
-                ${sortHeader("kind", "Kind")}
-                ${sortHeader("updated", "Updated")}
-                ${sortHeader("tokens", "Tokens")}
-                <th>Thinking</th>
-                <th>Fast</th>
-                <th>Verbose</th>
-                <th>Reasoning</th>
-                <th style="width: 60px;"></th>
-              </tr>
-            </thead>
-            <tbody>
-              ${
-                paginated.length === 0
-                  ? html`
-                      <tr>
-                        <td colspan="10" style="text-align: center; padding: 48px 16px; color: var(--muted)">
-                          No sessions found.
-                        </td>
-                      </tr>
-                    `
-                  : paginated.map((row) =>
-                      renderRow(
-                        row,
-                        props.basePath,
-                        props.onPatch,
-                        props.onDelete,
-                        props.onActionsOpenChange,
-                        props.actionsOpenKey,
-                        props.loading,
-                      ),
-                    )
-              }
-            </tbody>
-          </table>
+        <div class="session-group-summary">
+          ${SESSION_GROUP_ORDER.map((groupKey) => {
+            const meta = SESSION_GROUP_META[groupKey];
+            const count = summaryCounts[groupKey];
+            return html`
+              <div class="session-group-chip" ?data-empty=${count === 0}>
+                <span class="session-group-chip__label">${meta.title}</span>
+                <span class="session-group-chip__count">${count}</span>
+              </div>
+            `;
+          })}
         </div>
+
+        ${
+          groupedRows.length === 0
+            ? renderSessionsTable([])
+            : groupedRows.map((group) => {
+                const meta = SESSION_GROUP_META[group.key];
+                return html`
+                  <section class="session-group-panel">
+                    <div class="session-group-panel__header">
+                      <div>
+                        <div class="session-group-panel__title">${meta.title}</div>
+                        <div class="session-group-panel__sub">
+                          ${meta.description} Showing ${group.rows.length} row${group.rows.length === 1 ? "" : "s"} on this page.
+                        </div>
+                      </div>
+                    </div>
+                    ${renderSessionsTable(group.rows)}
+                  </section>
+                `;
+              })
+        }
 
         ${
           totalRows > 0
@@ -412,6 +536,11 @@ function renderRow(
     displayName !== row.key &&
     displayName !== (typeof row.label === "string" ? row.label.trim() : ""),
   );
+  const classificationBadges = [
+    row.project ? { value: row.project, tone: "project" } : null,
+    row.sessionKind ? { value: row.sessionKind, tone: "kind" } : null,
+    row.retentionClass ? { value: row.retentionClass, tone: "retention" } : null,
+  ].filter((value): value is { value: string; tone: string } => value !== null);
   const canLink = row.kind !== "global";
   const chatUrl = canLink
     ? `${pathForTab("chat", basePath)}?session=${encodeURIComponent(row.key)}`
@@ -434,6 +563,19 @@ function renderRow(
           ${
             showDisplayName
               ? html`<span class="muted session-key-display-name">${displayName}</span>`
+              : nothing
+          }
+          ${
+            classificationBadges.length > 0
+              ? html`
+                  <span class="session-key-badges">
+                    ${classificationBadges.map(
+                      (badge) => html`
+                        <span class="session-key-badge" data-tone=${badge.tone}>${badge.value}</span>
+                      `,
+                    )}
+                  </span>
+                `
               : nothing
           }
         </div>

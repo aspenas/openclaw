@@ -483,4 +483,42 @@ describe("GatewayBrowserClient", () => {
 
     vi.useRealTimers();
   });
+
+  it("does not auto-reconnect when pairing is rejected before a structured error arrives", async () => {
+    vi.useFakeTimers();
+
+    const client = new GatewayBrowserClient({
+      url: "ws://127.0.0.1:18789",
+    });
+
+    client.start();
+    const ws1 = getLatestWebSocket();
+    ws1.emitOpen();
+    ws1.emitClose(1008, "pairing required");
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(wsInstances).toHaveLength(1);
+
+    client.stop();
+    vi.useRealTimers();
+  });
+
+  it("does not auto-reconnect when device identity is required before a structured error arrives", async () => {
+    vi.useFakeTimers();
+
+    const client = new GatewayBrowserClient({
+      url: "ws://127.0.0.1:18789",
+    });
+
+    client.start();
+    const ws1 = getLatestWebSocket();
+    ws1.emitOpen();
+    ws1.emitClose(1008, "device identity required");
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(wsInstances).toHaveLength(1);
+
+    client.stop();
+    vi.useRealTimers();
+  });
 });
