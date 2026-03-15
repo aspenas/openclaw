@@ -39,8 +39,12 @@ function buildMemorySection(params: {
   isMinimal: boolean;
   availableTools: Set<string>;
   citationsMode?: MemoryCitationsMode;
+  hasInjectedMemoryFile: boolean;
 }) {
   if (params.isMinimal) {
+    return [];
+  }
+  if (!params.hasInjectedMemoryFile) {
     return [];
   }
   if (!params.availableTools.has("memory_search") && !params.availableTools.has("memory_get")) {
@@ -375,6 +379,15 @@ export function buildAgentSystemPrompt(params: {
     .filter(Boolean);
   const runtimeCapabilitiesLower = new Set(runtimeCapabilities.map((cap) => cap.toLowerCase()));
   const inlineButtonsEnabled = runtimeCapabilitiesLower.has("inlinebuttons");
+  const hasInjectedMemoryFile = (params.contextFiles ?? []).some((file) => {
+    const rawPath = file?.path?.trim();
+    if (!rawPath) {
+      return false;
+    }
+    const normalized = rawPath.replace(/\\/g, "/");
+    const baseName = normalized.split("/").pop()?.toLowerCase();
+    return baseName === "memory.md";
+  });
   const messageChannelOptions = listDeliverableMessageChannels().join("|");
   const promptMode = params.promptMode ?? "full";
   const isMinimal = promptMode === "minimal" || promptMode === "none";
@@ -406,6 +419,7 @@ export function buildAgentSystemPrompt(params: {
     isMinimal,
     availableTools,
     citationsMode: params.memoryCitationsMode,
+    hasInjectedMemoryFile,
   });
   const docsSection = buildDocsSection({
     docsPath: params.docsPath,

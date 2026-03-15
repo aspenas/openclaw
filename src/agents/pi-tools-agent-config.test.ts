@@ -403,6 +403,32 @@ describe("Agent-specific tool filtering", () => {
     expect(defaultNames).not.toContain("exec");
   });
 
+  it("should honor group-specific deny rules for memory tools", () => {
+    const cfg: OpenClawConfig = {
+      channels: {
+        imessage: {
+          groups: {
+            "3803": {
+              tools: { deny: ["memory_search", "memory_get"] },
+            },
+          },
+        },
+      },
+    };
+
+    const tools = createOpenClawCodingTools({
+      config: cfg,
+      sessionKey: "agent:main:imessage:group:3803",
+      messageProvider: "imessage",
+      groupId: "3803",
+      workspaceDir: "/tmp/test-imessage-group-memory-deny",
+      agentDir: "/tmp/agent-imessage-group-memory-deny",
+    });
+    const names = tools.map((t) => t.name);
+    expect(names).not.toContain("memory_search");
+    expect(names).not.toContain("memory_get");
+  });
+
   it("should apply per-sender tool policies for group tools", () => {
     const cfg: OpenClawConfig = {
       channels: {

@@ -546,6 +546,28 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("- AGENTS.md: 200 raw -> 0 injected");
   });
 
+  it("omits memory recall guidance when no memory bootstrap file is injected", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      toolNames: ["memory_search", "memory_get"],
+      contextFiles: [{ path: "AGENTS.md", content: "Alpha" }],
+    });
+
+    expect(prompt).not.toContain("## Memory Recall");
+    expect(prompt).not.toContain("run memory_search on MEMORY.md + memory/*.md");
+  });
+
+  it("includes memory recall guidance when a memory bootstrap file is injected", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      toolNames: ["memory_search", "memory_get"],
+      contextFiles: [{ path: "MEMORY.md", content: "Remember this" }],
+    });
+
+    expect(prompt).toContain("## Memory Recall");
+    expect(prompt).toContain("run memory_search on MEMORY.md + memory/*.md");
+  });
+
   it("summarizes the message tool when available", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",
