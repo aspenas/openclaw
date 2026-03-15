@@ -139,6 +139,26 @@ describe("imessage monitor gating + envelope builders", () => {
     expect(ctxPayload.To).toBe("chat_id:42");
   });
 
+  it("prefers chat_guid for group reply routing when available", () => {
+    const cfg = baseCfg();
+    const message: IMessagePayload = {
+      id: 16,
+      chat_id: 3803,
+      chat_guid: "any;+;524289e1f0e0433a94a1b5f6c9d63159",
+      chat_identifier: "524289e1f0e0433a94a1b5f6c9d63159",
+      sender: "+15550002222",
+      is_from_me: false,
+      text: "@openclaw ping",
+      is_group: true,
+      chat_name: "Patrick & Aaron",
+    };
+    const ctxPayload = buildDispatchContextPayload({ cfg, message });
+
+    expect(ctxPayload.SessionKey).toBe("agent:main:imessage:group:3803");
+    expect(ctxPayload.To).toBe("chat_guid:any;+;524289e1f0e0433a94a1b5f6c9d63159");
+    expect(ctxPayload.OriginatingTo).toBe("chat_guid:any;+;524289e1f0e0433a94a1b5f6c9d63159");
+  });
+
   it("includes reply-to context fields + suffix", () => {
     const cfg = baseCfg();
     const message: IMessagePayload = {
@@ -179,6 +199,28 @@ describe("imessage monitor gating + envelope builders", () => {
     const { decision } = resolveDispatchDecision({ cfg, message, groupHistories });
     expect(decision.isGroup).toBe(true);
     expect(decision.route.sessionKey).toBe("agent:main:imessage:group:2");
+  });
+
+  it("keeps unconfigured two-person split variants out of group routing when is_group is false", () => {
+    const cfg = baseCfg();
+    cfg.session = { mainKey: "main", dmScope: "per-channel-peer" } as OpenClawConfig["session"];
+    cfg.channels ??= {};
+    cfg.channels.imessage ??= {};
+    cfg.channels.imessage.groupPolicy = "allowlist";
+    cfg.channels.imessage.groups = { "3801": { requireMention: false } };
+
+    const groupHistories = new Map();
+    const message: IMessagePayload = {
+      id: 15,
+      chat_id: 3803,
+      sender: "+15550001111",
+      is_from_me: false,
+      text: "hello from split variant",
+      is_group: false,
+    };
+    const { decision } = resolveDispatchDecision({ cfg, message, groupHistories });
+    expect(decision.isGroup).toBe(false);
+    expect(decision.route.sessionKey).toBe("agent:main:imessage:direct:+15550001111");
   });
 
   it("allows group messages when requireMention is true but no mentionPatterns exist", () => {

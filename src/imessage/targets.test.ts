@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   formatIMessageChatTarget,
+  formatIMessageReplyTarget,
   isAllowedIMessageSender,
   normalizeIMessageHandle,
   parseIMessageTarget,
@@ -82,6 +83,22 @@ describe("imessage targets", () => {
   it("formats chat targets", () => {
     expect(formatIMessageChatTarget(42)).toBe("chat_id:42");
     expect(formatIMessageChatTarget(undefined)).toBe("");
+  });
+
+  it("prefers chat_guid when formatting reply targets", () => {
+    expect(
+      formatIMessageReplyTarget({
+        chatGuid: "any;+;524289e1f0e0433a94a1b5f6c9d63159",
+        chatId: 3803,
+        chatIdentifier: "524289e1f0e0433a94a1b5f6c9d63159",
+      }),
+    ).toBe("chat_guid:any;+;524289e1f0e0433a94a1b5f6c9d63159");
+  });
+
+  it("falls back from chat_guid to chat_id to chat_identifier", () => {
+    expect(formatIMessageReplyTarget({ chatId: 42 })).toBe("chat_id:42");
+    expect(formatIMessageReplyTarget({ chatIdentifier: "abc123" })).toBe("chat_identifier:abc123");
+    expect(formatIMessageReplyTarget({})).toBe("");
   });
 });
 

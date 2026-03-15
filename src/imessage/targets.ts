@@ -145,3 +145,23 @@ export function formatIMessageChatTarget(chatId?: number | null): string {
   }
   return `chat_id:${chatId}`;
 }
+
+export function formatIMessageReplyTarget(params: {
+  chatGuid?: string | null;
+  chatId?: number | null;
+  chatIdentifier?: string | null;
+}): string {
+  const chatGuid = params.chatGuid?.trim();
+  if (chatGuid) {
+    return `chat_guid:${chatGuid}`;
+  }
+  const chatIdTarget = formatIMessageChatTarget(params.chatId);
+  if (chatIdTarget) {
+    return chatIdTarget;
+  }
+  const chatIdentifier = params.chatIdentifier?.trim();
+  if (chatIdentifier) {
+    return `chat_identifier:${chatIdentifier}`;
+  }
+  return "";
+}

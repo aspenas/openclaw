@@ -4,6 +4,7 @@ import {
   downgradeOpenAIReasoningBlocks,
   isMessagingToolDuplicate,
   normalizeTextForComparison,
+  sanitizeOpenAIReasoningReplay,
   sanitizeToolCallId,
   sanitizeUserFacingText,
   stripThoughtSignatures,
@@ -389,6 +390,29 @@ describe("downgradeOpenAIFunctionCallReasoningPairs", () => {
       makeToolResult(callIdWithoutReasoning, "turn1"),
       makeReasoningAssistantTurn(callIdWithReasoning),
       makeToolResult(callIdWithReasoning, "turn2"),
+    ]);
+  });
+});
+
+describe("sanitizeOpenAIReasoningReplay", () => {
+  it("drops orphaned reasoning replay blocks before OpenAI responses replay", () => {
+    const input = [
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "thinking",
+            thinking: "internal reasoning",
+            thinkingSignature: JSON.stringify({ id: "rs_orphan", type: "reasoning" }),
+          },
+        ],
+      },
+      { role: "user", content: "next" },
+    ];
+
+    // oxlint-disable-next-line typescript/no-explicit-any
+    expect(sanitizeOpenAIReasoningReplay(input as any)).toEqual([
+      { role: "user", content: "next" },
     ]);
   });
 });

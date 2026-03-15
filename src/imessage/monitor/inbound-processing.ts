@@ -28,6 +28,7 @@ import { sanitizeTerminalText } from "../../terminal/safe-text.js";
 import { truncateUtf16Safe } from "../../utils.js";
 import {
   formatIMessageChatTarget,
+  formatIMessageReplyTarget,
   isAllowedIMessageSender,
   normalizeIMessageHandle,
 } from "../targets.js";
@@ -398,8 +399,13 @@ export function buildIMessageInboundContext(params: {
   const envelopeOptions = params.envelopeOptions ?? resolveEnvelopeFormatOptions(params.cfg);
   const { decision } = params;
   const chatId = decision.chatId;
-  const chatTarget =
-    decision.isGroup && chatId != null ? formatIMessageChatTarget(chatId) : undefined;
+  const chatTarget = decision.isGroup
+    ? formatIMessageReplyTarget({
+        chatGuid: decision.chatGuid,
+        chatId,
+        chatIdentifier: decision.chatIdentifier,
+      }) || undefined
+    : undefined;
 
   const replySuffix = decision.replyContext
     ? `\n\n[Replying to ${decision.replyContext.sender ?? "unknown sender"}${

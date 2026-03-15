@@ -200,6 +200,14 @@ export function downgradeOpenAIFunctionCallReasoningPairs(
 }
 
 /**
+ * Apply the OpenAI replay repairs together so every caller gets the same
+ * transcript-shaping behavior for orphaned reasoning and `fc_*` pairing ids.
+ */
+export function sanitizeOpenAIReasoningReplay(messages: AgentMessage[]): AgentMessage[] {
+  return downgradeOpenAIFunctionCallReasoningPairs(downgradeOpenAIReasoningBlocks(messages));
+}
+
+/**
  * OpenAI Responses API can reject transcripts that contain a standalone `reasoning` item id
  * without the required following item.
  *
