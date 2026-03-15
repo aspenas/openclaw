@@ -11,7 +11,7 @@ describe("imessageOutbound", () => {
     },
   };
 
-  it("passes replyToId through sendText", async () => {
+  it("does not pass unsupported replyToId through sendText", async () => {
     const sendIMessage = vi.fn().mockResolvedValue({ messageId: "text-1" });
     const sendText = imessageOutbound.sendText;
     expect(sendText).toBeDefined();
@@ -25,19 +25,19 @@ describe("imessageOutbound", () => {
       deps: { sendIMessage },
     });
 
-    expect(sendIMessage).toHaveBeenCalledWith(
-      "chat_id:123",
-      "hello",
+    expect(sendIMessage).toHaveBeenCalledTimes(1);
+    const [, , options] = sendIMessage.mock.calls[0] ?? [];
+    expect(options).toEqual(
       expect.objectContaining({
-        replyToId: "msg-123",
         accountId: "default",
         maxBytes: 2 * 1024 * 1024,
       }),
     );
+    expect(options?.replyToId).toBeUndefined();
     expect(result).toEqual({ channel: "imessage", messageId: "text-1" });
   });
 
-  it("passes replyToId through sendMedia", async () => {
+  it("does not pass unsupported replyToId through sendMedia", async () => {
     const sendIMessage = vi.fn().mockResolvedValue({ messageId: "media-1" });
     const sendMedia = imessageOutbound.sendMedia;
     expect(sendMedia).toBeDefined();
@@ -53,17 +53,17 @@ describe("imessageOutbound", () => {
       deps: { sendIMessage },
     });
 
-    expect(sendIMessage).toHaveBeenCalledWith(
-      "chat_id:123",
-      "caption",
+    expect(sendIMessage).toHaveBeenCalledTimes(1);
+    const [, , options] = sendIMessage.mock.calls[0] ?? [];
+    expect(options).toEqual(
       expect.objectContaining({
         mediaUrl: "https://example.com/file.jpg",
         mediaLocalRoots: ["/tmp"],
-        replyToId: "msg-456",
         accountId: "acct-1",
         maxBytes: 2 * 1024 * 1024,
       }),
     );
+    expect(options?.replyToId).toBeUndefined();
     expect(result).toEqual({ channel: "imessage", messageId: "media-1" });
   });
 });

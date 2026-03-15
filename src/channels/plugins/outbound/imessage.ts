@@ -13,18 +13,16 @@ export const imessageOutbound = createDirectTextMediaOutbound({
   channel: "imessage",
   resolveSender: resolveIMessageSender,
   resolveMaxBytes: createScopedChannelMediaMaxBytesResolver("imessage"),
-  buildTextOptions: ({ cfg, maxBytes, accountId, replyToId }) => ({
+  buildTextOptions: ({ cfg, maxBytes, accountId }) => ({
     config: cfg,
     maxBytes,
     accountId: accountId ?? undefined,
-    replyToId: replyToId ?? undefined,
   }),
-  buildMediaOptions: ({ cfg, mediaUrl, maxBytes, accountId, replyToId, mediaLocalRoots }) => ({
+  buildMediaOptions: ({ cfg, mediaUrl, maxBytes, accountId, mediaLocalRoots }) => ({
     config: cfg,
     mediaUrl,
     maxBytes,
     accountId: accountId ?? undefined,
-    replyToId: replyToId ?? undefined,
     mediaLocalRoots,
   }),
 });

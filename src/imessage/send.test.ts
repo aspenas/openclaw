@@ -96,6 +96,7 @@ describe("sendMessageIMessage", () => {
     });
     const params = getSentParams();
     expect(params.text).toBe("hello\nworld");
+    expect(params.reply_to_id).toBeUndefined();
   });
 
   it("strips inline reply tags from outbound iMessage text", async () => {
