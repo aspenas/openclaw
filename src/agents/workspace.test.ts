@@ -227,6 +227,8 @@ describe("filterBootstrapFilesForSession", () => {
   const mockFiles: WorkspaceBootstrapFile[] = [
     { name: "AGENTS.md", path: "/w/AGENTS.md", content: "", missing: false },
     { name: "SOUL.md", path: "/w/SOUL.md", content: "", missing: false },
+    { name: "SOUL-external.md", path: "/w/SOUL-external.md", content: "", missing: false },
+    { name: "GROUP_POLICY.md", path: "/w/GROUP_POLICY.md", content: "", missing: false },
     { name: "TOOLS.md", path: "/w/TOOLS.md", content: "", missing: false },
     { name: "IDENTITY.md", path: "/w/IDENTITY.md", content: "", missing: false },
     { name: "USER.md", path: "/w/USER.md", content: "", missing: false },
@@ -242,7 +244,29 @@ describe("filterBootstrapFilesForSession", () => {
 
   it("returns all files for normal (non-subagent, non-cron) session key", () => {
     const result = filterBootstrapFilesForSession(mockFiles, "agent:default:chat:main");
-    expect(result).toHaveLength(mockFiles.length);
+    expect(result.map((file) => file.name)).toEqual([
+      "AGENTS.md",
+      "SOUL.md",
+      "TOOLS.md",
+      "IDENTITY.md",
+      "USER.md",
+      "HEARTBEAT.md",
+      "BOOTSTRAP.md",
+      "MEMORY.md",
+    ]);
+  });
+
+  it("drops MEMORY/HEARTBEAT/BOOTSTRAP and keeps group policy files for group sessions", () => {
+    const result = filterBootstrapFilesForSession(mockFiles, "agent:main:imessage:group:3803");
+    expect(result.map((file) => file.name)).toEqual([
+      "AGENTS.md",
+      "SOUL.md",
+      "SOUL-external.md",
+      "GROUP_POLICY.md",
+      "TOOLS.md",
+      "IDENTITY.md",
+      "USER.md",
+    ]);
   });
 
   it("filters to allowlist for subagent sessions", () => {

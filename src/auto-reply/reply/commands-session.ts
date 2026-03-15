@@ -141,9 +141,9 @@ export const handleActivationCommand: CommandHandler = async (params, allowTextC
       reply: { text: "⚙️ Group activation only applies to group chats." },
     };
   }
-  if (!params.command.isAuthorizedSender) {
+  if (!params.command.senderIsOwner) {
     logVerbose(
-      `Ignoring /activation from unauthorized sender in group: ${params.command.senderId || "<unknown>"}`,
+      `Ignoring /activation from non-owner sender in group: ${params.command.senderId || "<unknown>"}`,
     );
     return { shouldContinue: false };
   }

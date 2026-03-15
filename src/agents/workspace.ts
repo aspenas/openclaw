@@ -24,6 +24,8 @@ export function resolveDefaultAgentWorkspaceDir(
 export const DEFAULT_AGENT_WORKSPACE_DIR = resolveDefaultAgentWorkspaceDir();
 export const DEFAULT_AGENTS_FILENAME = "AGENTS.md";
 export const DEFAULT_SOUL_FILENAME = "SOUL.md";
+export const DEFAULT_SOUL_EXTERNAL_FILENAME = "SOUL-external.md";
+export const DEFAULT_GROUP_POLICY_FILENAME = "GROUP_POLICY.md";
 export const DEFAULT_TOOLS_FILENAME = "TOOLS.md";
 export const DEFAULT_IDENTITY_FILENAME = "IDENTITY.md";
 export const DEFAULT_USER_FILENAME = "USER.md";
@@ -132,6 +134,8 @@ async function loadTemplate(name: string): Promise<string> {
 export type WorkspaceBootstrapFileName =
   | typeof DEFAULT_AGENTS_FILENAME
   | typeof DEFAULT_SOUL_FILENAME
+  | typeof DEFAULT_SOUL_EXTERNAL_FILENAME
+  | typeof DEFAULT_GROUP_POLICY_FILENAME
   | typeof DEFAULT_TOOLS_FILENAME
   | typeof DEFAULT_IDENTITY_FILENAME
   | typeof DEFAULT_USER_FILENAME
@@ -169,6 +173,8 @@ type WorkspaceOnboardingState = {
 const VALID_BOOTSTRAP_NAMES: ReadonlySet<string> = new Set([
   DEFAULT_AGENTS_FILENAME,
   DEFAULT_SOUL_FILENAME,
+  DEFAULT_SOUL_EXTERNAL_FILENAME,
+  DEFAULT_GROUP_POLICY_FILENAME,
   DEFAULT_TOOLS_FILENAME,
   DEFAULT_IDENTITY_FILENAME,
   DEFAULT_USER_FILENAME,
@@ -494,6 +500,14 @@ export async function loadWorkspaceBootstrapFiles(dir: string): Promise<Workspac
       filePath: path.join(resolvedDir, DEFAULT_SOUL_FILENAME),
     },
     {
+      name: DEFAULT_SOUL_EXTERNAL_FILENAME,
+      filePath: path.join(resolvedDir, DEFAULT_SOUL_EXTERNAL_FILENAME),
+    },
+    {
+      name: DEFAULT_GROUP_POLICY_FILENAME,
+      filePath: path.join(resolvedDir, DEFAULT_GROUP_POLICY_FILENAME),
+    },
+    {
       name: DEFAULT_TOOLS_FILENAME,
       filePath: path.join(resolvedDir, DEFAULT_TOOLS_FILENAME),
     },
@@ -548,12 +562,37 @@ const MINIMAL_BOOTSTRAP_ALLOWLIST = new Set([
   DEFAULT_USER_FILENAME,
 ]);
 
+const GROUP_SESSION_BOOTSTRAP_DENYLIST = new Set<WorkspaceBootstrapFileName>([
+  DEFAULT_HEARTBEAT_FILENAME,
+  DEFAULT_BOOTSTRAP_FILENAME,
+  DEFAULT_MEMORY_FILENAME,
+  DEFAULT_MEMORY_ALT_FILENAME,
+]);
+
+const NON_GROUP_OPTIONAL_BOOTSTRAP_DENYLIST = new Set<WorkspaceBootstrapFileName>([
+  DEFAULT_SOUL_EXTERNAL_FILENAME,
+  DEFAULT_GROUP_POLICY_FILENAME,
+]);
+
+function isGroupSessionKey(sessionKey?: string): boolean {
+  const normalized = sessionKey?.trim().toLowerCase();
+  return Boolean(
+    normalized && (normalized.includes(":group:") || normalized.includes(":channel:")),
+  );
+}
+
 export function filterBootstrapFilesForSession(
   files: WorkspaceBootstrapFile[],
   sessionKey?: string,
 ): WorkspaceBootstrapFile[] {
-  if (!sessionKey || (!isSubagentSessionKey(sessionKey) && !isCronSessionKey(sessionKey))) {
+  if (!sessionKey) {
     return files;
+  }
+  if (isGroupSessionKey(sessionKey)) {
+    return files.filter((file) => !GROUP_SESSION_BOOTSTRAP_DENYLIST.has(file.name));
+  }
+  if (!isSubagentSessionKey(sessionKey) && !isCronSessionKey(sessionKey)) {
+    return files.filter((file) => !NON_GROUP_OPTIONAL_BOOTSTRAP_DENYLIST.has(file.name));
   }
   return files.filter((file) => MINIMAL_BOOTSTRAP_ALLOWLIST.has(file.name));
 }
